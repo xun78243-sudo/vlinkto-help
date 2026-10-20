@@ -1,0 +1,13 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# runtime / local only
+*.log
+*.tmp
+__pycache__/
+
+# legacy Python implementation (kept locally, not in the repo)
+legacy/

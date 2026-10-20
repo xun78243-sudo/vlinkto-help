@@ -4,7 +4,7 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 「按聊天记录自动创建考试日程」能力封装成带开关的 **考试日程小助理**（开启后立即执行一次，
 之后每 3 小时执行一次）。应用常驻系统托盘，关闭窗口只是隐藏。
 
-> 旧的 Python 命令行 / 托盘版保留在 `legacy/` 目录，功能等价，可对照排查。
+> 旧的 Python 命令行 / 托盘版留在本地 `legacy/` 目录（未纳入仓库），功能等价，可对照排查。
 
 ---
 
@@ -32,7 +32,15 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 
 ## 运行
 
-### 方式一：双击 `start.bat`（推荐）
+### 方式一：装成正式应用（推荐给使用者）
+
+双击 `dist\微联叮小助手-安装版-1.0.0.exe` 按向导装好，之后从桌面 / 开始菜单的
+「微联叮小助手」启动；也可以直接用免安装的 `dist\微联叮小助手-便携版-1.0.0.exe`。
+详见下方「[打包成安装包](#打包成安装包)」。
+
+### 方式二：源码方式运行（开发调试用）
+
+双击 `start.bat`：
 
 ```
 start.bat
@@ -41,7 +49,7 @@ start.bat
 脚本会先清掉可能存在的 `ELECTRON_RUN_AS_NODE` 环境变量再启动（某些工具链会设置它，
 导致 `electron.exe` 被当成纯 Node 运行而直接报错退出）。
 
-### 方式二：命令行
+或者命令行：
 
 ```powershell
 npm install          # 首次
@@ -51,7 +59,7 @@ npm start
 开发模式（自动打开 DevTools）：`npm run dev`
 
 > 如果命令行里已经设置了 `ELECTRON_RUN_AS_NODE=1`，请先 `Remove-Item Env:\ELECTRON_RUN_AS_NODE`
-> 或直接用 `start.bat`。
+> 或直接用 `start.bat`。打包后的 exe 同样受这个变量影响（会以 Node 方式启动并立刻退出）。
 
 ### 前置条件
 
@@ -130,14 +138,36 @@ npm run smoke        # Electron 冒烟：渲染、开关、定时器、刷新按
 
 ---
 
-## 打包（可选）
+## 打包成安装包
 
 ```powershell
-npm install --save-dev electron-builder
-npx electron-builder --win
+npm run dist        # = electron-builder --win
 ```
 
-产物在 `dist\`（已配置 nsis 安装包 + portable 免安装版，图标取 `assets/icon.png`）。
+产物在 `dist\`：
+
+| 文件 | 说明 |
+| --- | --- |
+| `微联叮小助手-安装版-1.0.0.exe` | NSIS 安装包（约 106 MB）：可选安装目录、自动建桌面与开始菜单快捷方式、装完可直接启动 |
+| `微联叮小助手-便携版-1.0.0.exe` | 单文件免安装版，双击即用（每次启动自解压到临时目录） |
+| `win-unpacked\` | 未打包的绿色目录，可直接运行 `微联叮小助手.exe` |
+
+安装行为（`package.json` 的 `build` 字段已配好）：
+
+- 默认**按当前用户安装**（不需要管理员权限），默认目录 `%LOCALAPPDATA%\Programs\vlinkto-exam-assistant`；
+- 安装向导允许修改安装路径；桌面、开始菜单快捷方式名均为「微联叮小助手」；
+- 卸载：设置 → 应用 → 微联叮小助手，或安装目录下的 `Uninstall 微联叮小助手.exe`；
+- 卸载**不删除** `%APPDATA%\微联叮小助手`（配置、记账、日志会保留，重装后继续用）。
+
+图标由 `npm run icons` 生成（`assets/icon.ico` 含 16/24/32/48/64/128/256 多尺寸，
+同时生成 `icon.png`、`tray.png`、`tray@2x.png`）。改版本号改 `package.json` 的 `version`
+后重新 `npm run dist` 即可。
+
+> 打包机需要能访问 npm 源与 electron 二进制（首次会下载 ~158 MB 的 electron zip，
+> 之后命中 `%LOCALAPPDATA%\electron\Cache` 缓存）；NSIS 工具链已在
+> `%LOCALAPPDATA%\electron-builder\Cache` 缓存，可离线重复打包。
+>
+> 若打包中途被中断，可能残留临时锁 `%TEMP%\eb-dl-*.lock*`，删掉再打包即可。
 
 ---
 
@@ -155,11 +185,14 @@ src/
     api.js             统一 HTTP 封装（access-token 头、重试、401 识别）
     chat.js            拉聊天记录、规则判定、建日程、幂等
   renderer/            界面（index.html / styles.css / renderer.js）
-assets/                应用与托盘图标
+assets/
+  icon.png / icon.ico  应用图标（ico 为多尺寸，打包用）
+  tray.png / tray@2x.png  托盘图标
 scripts/
   check-core.js        核心自检
-  make-icons.js        生成 PNG 图标（无第三方依赖）
-legacy/               旧 Python 实现（等价参考）
+  make-icons.js        生成 PNG/ICO 图标（无第三方依赖）
+dist/                  打包产物（安装包、便携版、win-unpacked）
+legacy/                旧 Python 实现（等价参考）
 ```
 
 ---
@@ -183,3 +216,14 @@ legacy/               旧 Python 实现（等价参考）
 **4. 关闭窗口后程序不见了**
 
 它藏在托盘右下角，单击托盘图标或右键「显示主窗口」即可；右键「退出」才真正结束进程。
+
+**5. 安装包装好后双击图标没反应 / 一闪就没了**
+
+先确认不是环境变量问题：若在设置了 `ELECTRON_RUN_AS_NODE=1` 的终端里启动，exe 会以
+Node 方式跑并立刻退出（可临时 `Remove-Item Env:\ELECTRON_RUN_AS_NODE` 后重试；
+从桌面双击不受影响）。其次看 `%APPDATA%\微联叮小助手\logs\` 里当天日志有没有「启动」记录。
+
+**6. 装完发现不是最新代码**
+
+改完代码要重新 `npm run dist` 才会生成新的 exe；`dist\win-unpacked\` 是本次打包的
+绿色副本，可直接双击里面的 `微联叮小助手.exe` 快速验证，无需安装。

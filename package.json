@@ -1,0 +1,69 @@
+{
+  "name": "vlinkto-exam-assistant",
+  "productName": "微联叮小助手",
+  "version": "1.0.0",
+  "description": "微联叮桌面小助手：自动获取 token，按聊天记录自动创建考试日程",
+  "main": "src/main.js",
+  "author": "hanweb",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "icons": "node scripts/make-icons.js",
+    "check": "node scripts/check-core.js",
+    "check:live": "node scripts/check-core.js --live",
+    "smoke": "electron . --smoke --smoke-run",
+    "dist": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^44.9.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.hanweb.vlinkto.assistant",
+    "productName": "微联叮小助手",
+    "copyright": "Copyright © 2026 hanweb",
+    "asar": true,
+    "compression": "normal",
+    "directories": {
+      "output": "dist",
+      "buildResources": "assets"
+    },
+    "files": [
+      "src/**/*",
+      "assets/*.png",
+      "package.json"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "微联叮小助手",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "artifactName": "微联叮小助手-安装版-${version}.${ext}"
+    },
+    "portable": {
+      "artifactName": "微联叮小助手-便携版-${version}.${ext}"
+    }
+  }
+}
