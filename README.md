@@ -8,6 +8,19 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 
 ---
 
+## 下载
+
+不用自己编译，直接下打包好的 exe（[Releases](https://github.com/xun78243-sudo/vlinkto-help/releases/latest)）：
+
+| 文件 | 大小 | 适用 |
+| --- | --- | --- |
+| [vlinkto-assistant-setup-1.0.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-setup-1.0.0.exe) | 106 MB | 安装版：按用户安装、免管理员，自动建桌面与开始菜单快捷方式 |
+| [vlinkto-assistant-portable-1.0.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-portable-1.0.0.exe) | 106 MB | 便携版：单文件免安装，双击即用 |
+
+使用前提：微联叮客户端已登录、机器能访问 `work.hanweb.com`。
+
+---
+
 ## 功能
 
 | 模块 | 说明 |
