@@ -20,13 +20,13 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 
 | 文件 | 大小 | 适用 |
 | --- | --- | --- |
-| [vlinkto-assistant-setup-1.4.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-setup-1.4.0.exe) | 106 MB | 安装版：按用户安装、免管理员，自动建桌面与开始菜单快捷方式 |
-| [vlinkto-assistant-portable-1.4.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-portable-1.4.0.exe) | 106 MB | 便携版：单文件免安装，双击即用 |
+| [vlinkto-assistant-setup-1.1.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-setup-1.1.0.exe) | 106 MB | 安装版：按用户安装、免管理员，自动建桌面与开始菜单快捷方式 |
+| [vlinkto-assistant-portable-1.1.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-portable-1.1.0.exe) | 106 MB | 便携版：单文件免安装，双击即用 |
 
 使用前提：微联叮客户端已登录、机器能访问 `work.hanweb.com`（到期提醒也走这个网关）；
 缺陷单总结还要求能访问内网 `192.168.10.51`（AI 服务）和 `192.168.5.15`（GitLab）。
 
-> 上面是 1.4.0（新增「工单到期提醒」）的链接。若暂时 404，说明该版本还没发到 Release，
+> 上面是 **v1.1.0**（考试日程 + 缺陷单总结/信息地址 + 工单到期提醒）的链接。若暂时 404，说明该版本还没发到 Release，
 > 可直接用本地 `dist\` 下的安装包，或自己 `npm run dist` 打一个。
 
 ---
