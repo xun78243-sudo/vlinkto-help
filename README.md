@@ -41,6 +41,7 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 | 日志 | 界面实时日志 + 按天写入 `logs\exam_YYYY-MM-DD.log` |
 | 幂等 | 每条消息按 `msgId` 记账（`state.json`），同一条消息不会重复建日程；首次启动会自动迁移旧 Python 版的记账文件 |
 | 缺陷单总结 | 工单编号 + git 分支地址 → 标题 / 问题描述 / 分析过程 / 处理措施，四项各自一键复制 |
+| 界面 | 左侧菜单切换「考试日程 / 缺陷单总结」；缺陷单表单纵向排列、不预填任何默认值 |
 
 检测逻辑（与 Python 版一致）：
 
@@ -56,7 +57,7 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 
 ### 怎么用
 
-1. 切到「缺陷单总结」页签；
+1. 在左侧菜单点「缺陷单总结」；
 2. 填 **工单编号**（如 `JETABLE2026101400071`）和 **git 地址（含分支）**，例如
    `http://192.168.5.15/jpaas/jagent/be/jagent-web/tree/release-4.3.5.17`；
 3. 点「生成总结」，依次跑三步：**查工单 → 拉取提交 → AI 生成**（通常 15–40 秒，界面有进度点）；
@@ -89,17 +90,19 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 - 提交人过滤：「git 账号」或「git 名称」命中作者名 / 邮箱即算本人（默认取本机 git 配置）。
 - 分支不存在时会列出相近分支名；凭据缺失会明确提示先手动 clone 一次。
 
-### 设置项（界面右上角「设置」，存 `config.json` 的 `defect` 段）
+### 设置项（缺陷单页签右上角「设置」，存 `config.json` 的 `defect` 段）
 
 | 项 | 默认值 |
 | --- | --- |
 | git 账号 / 名称 | `xuning` / `徐宁` |
 | 仓库访问账号 / 密码 | 留空 = 用本机 git 凭据；填了就按 HTTP Basic 认证拉取（只存本机 `config.json`） |
-| 默认 git 地址 | `http://192.168.5.15/jpaas/jagent/be/jagent-web/tree/release-4.3.5.17` |
 | AI 服务地址 | `http://192.168.10.51:31587/common-inference-server/interface/v1` |
 | AI 模型 | `Qwen3.6-27B`（下拉列出内网模型的对话类部分） |
 | 提交条数 | 参与分析最多 20 条，提交清单展示最多 10 条 |
 | 工单扫描 | 最多 100 条待办 |
+
+> 界面上的**工单编号和 git 地址两栏不预填任何默认值**，每次都手填（或粘贴）。
+> `config.json` 里的 `defaultGitUrl` 只给自检脚本和冒烟测试用，不再影响界面。
 
 > AI 服务是内网 OpenAI 兼容接口（`/chat/completions`、`/models`），默认无需密钥；
 > 若你的环境要求鉴权，在设置里填「AI 接口密钥」，会以 `Authorization: Bearer` 发送。
@@ -204,7 +207,7 @@ npm start
 npm run check          # 离线：国密向量、规则、token、缺陷单纯函数（URL 解析 / AI JSON / 清单拼装）
 npm run check:live     # 额外跑一次真实聊天接口（dry-run，不建日程）
 npm run check:defect   # 缺陷单联网自检：查工单 + 拉 git 提交 + 真实调用一次模型
-npm run smoke          # Electron 冒烟：页签、开关、定时器、刷新按钮、关窗隐藏到托盘
+npm run smoke          # Electron 冒烟：左侧菜单、开关、定时器、刷新按钮、关窗隐藏到托盘
 npm run smoke:defect   # Electron 端到端：界面点「生成总结」并读回四个字段
 ```
 
@@ -218,7 +221,8 @@ npm run smoke:defect   # Electron 端到端：界面点「生成总结」并读�
 打印模型生成的分析与措施，便于判断模型输出质量。
 
 两个 Electron 冒烟脚本都会输出一行 JSON（`SMOKE` / `SMOKE_DEFECT`），除内容外还包含布局几何量
-（页签、输入框、结果块尺寸、是否横向溢出），可用于回归检查样式有没有被改坏。
+（侧边菜单宽度、两个输入框是否纵向同列、结果块尺寸、是否横向溢出）以及启动时表单的初始值
+（`formValues`，应为两个空串），可用于回归检查样式与「无默认值」有没有被改坏。
 加 `--capture=<路径>` 还会把窗口截图存成 PNG：
 
 ```powershell

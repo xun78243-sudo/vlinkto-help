@@ -113,12 +113,7 @@ function render(snapshotData) {
       : '关闭窗口将退出应用'
   }
 
-  if (snapshotData.defect) {
-    const gitInput = $('defect-giturl')
-    if (gitInput && !gitInput.value && snapshotData.defect.defaultGitUrl) {
-      gitInput.value = snapshotData.defect.defaultGitUrl
-    }
-  }
+  // 缺陷单表单不预填任何默认值：工单号与 git 地址每次都由使用者输入
 }
 
 function appendLog(entry) {
@@ -192,8 +187,8 @@ const DEFECT_FIELDS = ['title', 'description', 'analysis', 'measures']
 const STAGE_TEXT = { ticket: '查工单', git: '拉取提交', ai: 'AI 生成' }
 
 function switchPane(name) {
-  for (const tab of document.querySelectorAll('.tab')) {
-    tab.classList.toggle('is-active', tab.dataset.pane === name)
+  for (const item of document.querySelectorAll('.menu-item')) {
+    item.classList.toggle('is-active', item.dataset.pane === name)
   }
   $('pane-exam').hidden = name !== 'exam'
   $('pane-defect').hidden = name !== 'defect'
@@ -292,7 +287,6 @@ async function loadDefectSettings() {
 
   $('set-git-user').value = defectInfo.gitUser || ''
   $('set-git-name').value = defectInfo.gitName || ''
-  $('set-git-url').value = defectInfo.defaultGitUrl || ''
   $('set-apikey').value = ''
   $('set-apikey').placeholder = defectInfo.hasApiKey ? '已保存（留空则不修改）' : '通常留空即可'
   $('set-git-auth-user').value = defectInfo.gitAuthUser || ''
@@ -300,10 +294,6 @@ async function loadDefectSettings() {
   $('set-git-auth-pass').placeholder = defectInfo.hasGitPassword
     ? '已保存（留空则不修改）'
     : '留空则用本机 git 凭据'
-
-  if (!$('defect-giturl').value && defectInfo.defaultGitUrl) {
-    $('defect-giturl').value = defectInfo.defaultGitUrl
-  }
 
   const select = $('set-model')
   select.textContent = ''
@@ -334,7 +324,6 @@ async function submitDefectSettings() {
   const patch = {
     gitUser: $('set-git-user').value,
     gitName: $('set-git-name').value,
-    defaultGitUrl: $('set-git-url').value,
     gitAuthUser: $('set-git-auth-user').value,
     aiModel: $('set-model').value,
   }
@@ -393,9 +382,9 @@ async function generateDefect() {
 
 function bindDefect() {
   $('tabs').addEventListener('click', (event) => {
-    const tab = event.target.closest('.tab')
-    if (!tab) return
-    switchPane(tab.dataset.pane)
+    const item = event.target.closest('.menu-item')
+    if (!item) return
+    switchPane(item.dataset.pane)
   })
 
   $('btn-defect-generate').addEventListener('click', generateDefect)

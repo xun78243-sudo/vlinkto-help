@@ -1,36 +1,105 @@
-/* 缺陷单总结助手 + 顶部页签的样式（不覆盖 styles.css 里已有规则） */
+/* 缺陷单总结助手 + 左侧菜单的样式（不覆盖 styles.css 里已有规则） */
 
-/* ---------------- 页签 ---------------- */
+/* ---------------- 左侧菜单 ---------------- */
 
-.tabs {
-  display: flex;
-  gap: 6px;
-  padding: 4px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.16);
+body {
+  flex-direction: row;
 }
 
-.tab {
+.sidebar {
+  flex: 0 0 208px;
+  width: 208px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 12px 14px;
+  background: linear-gradient(180deg, #2f6fed 0%, #4f8ef7 100%);
+  color: #fff;
+}
+
+.side-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px 12px;
+}
+
+.side-brand .logo {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.side-brand h1 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.side-brand p {
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.3;
+}
+
+.menu {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.menu-item {
   border: 0;
   cursor: pointer;
-  padding: 6px 14px;
-  border-radius: 8px;
+  padding: 10px 12px;
+  border-radius: 9px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.88);
   font-size: 13px;
   font-family: inherit;
+  text-align: left;
   transition: background 0.15s, color 0.15s;
 }
 
-.tab:hover {
+.menu-item:hover {
   background: rgba(255, 255, 255, 0.16);
   color: #fff;
 }
 
-.tab.is-active {
+.menu-item.is-active {
   background: #fff;
   color: var(--accent-dark);
   font-weight: 600;
+}
+
+.side-foot {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 0 6px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.side-foot .version {
+  font-size: 11px;
+  opacity: 0.9;
+}
+
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .pane[hidden] {
@@ -38,6 +107,13 @@
 }
 
 /* ---------------- 表单 ---------------- */
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
 
 .form-row {
   display: flex;
@@ -205,9 +281,7 @@
 }
 
 .defect-settings .field-note {
-  flex: 1 1 240px;
-  align-self: flex-end;
-  padding-bottom: 8px;
+  margin: -4px 0 12px;
   line-height: 1.4;
 }
 

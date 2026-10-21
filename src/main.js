@@ -567,7 +567,7 @@ async function runDefectSmoke() {
   const gitUrl = process.argv.find((item) => /^https?:\/\//i.test(item)) || cfg.defaultGitUrl
 
   await mainWindow.webContents.executeJavaScript(`(() => {
-    document.querySelector('.tab[data-pane="defect"]').click()
+    document.querySelector('.menu-item[data-pane="defect"]').click()
     document.getElementById('defect-ticket').value = ${JSON.stringify(ticketNo)}
     document.getElementById('defect-giturl').value = ${JSON.stringify(gitUrl)}
     document.getElementById('btn-defect-generate').click()
@@ -605,11 +605,17 @@ async function runDefectSmoke() {
         .map((node) => Math.round(node.getBoundingClientRect().height))
       const visibleCopies = Array.from(document.querySelectorAll('#defect-result .copy'))
         .filter((node) => node.getBoundingClientRect().width > 0).length
+      const ticket = document.getElementById('defect-ticket').getBoundingClientRect()
+      const gitBox = document.getElementById('defect-giturl').getBoundingClientRect()
+      const sidebar = document.querySelector('.sidebar')
       return {
-        tabs: rect('.tabs'),
+        sidebarWidth: sidebar ? Math.round(sidebar.getBoundingClientRect().width) : 0,
+        menu: rect('.menu'),
         generateButton: rect('#btn-defect-generate'),
         ticketInput: rect('#defect-ticket'),
         gitInput: rect('#defect-giturl'),
+        inputsStacked: gitBox.top >= ticket.bottom - 1,
+        inputsSameLeft: Math.abs(gitBox.left - ticket.left) < 2,
         resultBlock: rect('#defect-result'),
         textareas,
         visibleCopies,
@@ -667,7 +673,13 @@ if (!gotLock) {
         switchChecked: Boolean(document.getElementById('exam-switch') && document.getElementById('exam-switch').checked),
         lastResult: (document.getElementById('exam-result') || {}).textContent,
         nextRun: (document.getElementById('exam-next') || {}).textContent,
-        tabs: document.querySelectorAll('.tab').length,
+        menuItems: document.querySelectorAll('.menu-item').length,
+        sidebar: (() => {
+          const node = document.querySelector('.sidebar')
+          return node ? Math.round(node.getBoundingClientRect().width) : 0
+        })(),
+        formValues: ['defect-ticket', 'defect-giturl']
+          .map((id) => (document.getElementById(id) || {}).value || ''),
         defectPaneHidden: Boolean(document.getElementById('pane-defect') && document.getElementById('pane-defect').hidden),
         defectInputs: document.querySelectorAll('#pane-defect input').length,
         defectCopyButtons: document.querySelectorAll('#defect-result .copy').length,
