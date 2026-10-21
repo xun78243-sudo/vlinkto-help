@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('assistant', {
   defectModels: () => ipcRenderer.invoke('defect:models'),
   saveDefectSettings: (patch) => ipcRenderer.invoke('defect:saveSettings', patch),
   generateDefect: (payload) => ipcRenderer.invoke('defect:generate', payload),
+  submitDefectInfo: (payload) => ipcRenderer.invoke('defect:submit', payload),
   onState: (callback) => {
     ipcRenderer.on('state:update', (event, payload) => callback(payload))
   },

@@ -181,7 +181,7 @@ function bind() {
 // ---------------------------------------------------------------- 缺陷单总结
 
 const DEFECT_FIELDS = ['title', 'description', 'analysis', 'measures']
-const STAGE_TEXT = { ticket: '查工单', git: '拉取提交', ai: 'AI 生成' }
+const STAGE_TEXT = { ticket: '查工单', git: '拉取提交', ai: 'AI 生成', submit: '提交信息' }
 
 function switchPane(name) {
   for (const item of document.querySelectorAll('.menu-item')) {
@@ -253,6 +253,7 @@ function renderDefectResult(result) {
   if (meta.title) parts.push(meta.title)
   if (meta.branch) parts.push(`分支 ${meta.branch}`)
   parts.push(`提交 ${meta.commitCount || 0}/${meta.scannedCommits || 0} 条`)
+  if (meta.infoIid) parts.push('信息已生成')
   if (meta.model) parts.push(meta.model)
   parts.push(`${seconds}s`)
   $('defect-meta').textContent = parts.join(' · ')
@@ -260,10 +261,31 @@ function renderDefectResult(result) {
     .map((item) => `${item.short} ${item.date} ${item.subject}`)
     .join('\n')
 
+  renderInfo(result && result.info)
+
   for (const node of document.querySelectorAll('.copy')) {
     node.classList.remove('is-copied')
     node.textContent = '复制'
   }
+}
+
+/** 确认提交结果条：成功蓝底、失败红底，「重新提交」按钮一直留着。 */
+function renderInfo(info) {
+  const box = $('defect-info')
+  const text = $('defect-info-text')
+
+  if (!info || !info.message) {
+    box.hidden = true
+    box.classList.remove('is-error', 'is-muted')
+    text.textContent = ''
+    return
+  }
+
+  box.hidden = false
+  const skipped = Boolean(info.skipped)
+  box.classList.toggle('is-error', info.ok !== true && !skipped)
+  box.classList.toggle('is-muted', info.ok !== true && skipped)
+  text.textContent = info.message
 }
 
 async function copyField(button) {
@@ -292,6 +314,7 @@ async function loadDefectSettings() {
   $('set-git-auth-pass').placeholder = defectInfo.hasGitPassword
     ? '已保存（留空则不修改）'
     : '留空则用本机 git 凭据'
+  $('set-info-auto').checked = defectInfo.infoAutoSubmit !== false
 
   const select = $('set-model')
   select.textContent = ''
@@ -324,6 +347,7 @@ async function submitDefectSettings() {
     gitName: $('set-git-name').value,
     gitAuthUser: $('set-git-auth-user').value,
     aiModel: $('set-model').value,
+    infoAutoSubmit: $('set-info-auto').checked,
   }
   const key = $('set-apikey').value.trim()
   if (key) patch.aiApiKey = key
@@ -386,6 +410,31 @@ function bindDefect() {
   })
 
   $('btn-defect-generate').addEventListener('click', generateDefect)
+
+  $('btn-defect-submit').addEventListener('click', async () => {
+    const button = $('btn-defect-submit')
+    const fields = {}
+    for (const key of DEFECT_FIELDS) fields[key] = $(`out-${key}`).value
+
+    button.disabled = true
+    button.textContent = '提交中…'
+    clearDefectError()
+    try {
+      const info = await api.submitDefectInfo({ fields })
+      renderInfo(info)
+      const current = $('defect-meta').textContent
+      if (current && !current.includes('信息已生成')) {
+        $('defect-meta').textContent = `${current} · 信息已生成`
+      }
+    } catch (error) {
+      const message = `提交失败：${cleanError(error)}`
+      renderInfo({ ok: false, message })
+      showDefectError('提交信息数据失败', cleanError(error))
+    } finally {
+      button.disabled = false
+      button.textContent = '重新提交'
+    }
+  })
 
   $('btn-defect-settings').addEventListener('click', async () => {
     const panel = $('defect-settings')

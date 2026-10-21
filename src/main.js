@@ -17,6 +17,7 @@ const chat = require('./exam/chat')
 const { AuthError } = require('./exam/api')
 const defect = require('./defect')
 const defectAi = require('./defect/ai')
+const defectInfo = require('./defect/info')
 
 const APP_NAME = '微联叮小助手'
 const ASSETS = path.join(__dirname, '..', 'assets')
@@ -28,6 +29,7 @@ let isQuitting = false
 let userDir = ''
 
 const MAX_LOGS = 400
+const SMOKE_MODE = process.argv.includes('--smoke')
 const logs = []
 
 const state = {
@@ -44,6 +46,8 @@ const state = {
     running: false,
     lastStage: null,
     lastResult: null,
+    lastMeta: null,
+    lastFingerprint: '',
   },
 }
 
@@ -154,6 +158,7 @@ function defectView() {
     hasApiKey: Boolean(cfg.aiApiKey),
     commitLimit: Number(cfg.commitLimit) || 20,
     maxTickets: Number(cfg.maxTickets) || 100,
+    infoAutoSubmit: cfg.infoAutoSubmit !== false,
   }
 }
 
@@ -505,9 +510,11 @@ function registerIpc() {
           : source[key].trim()
       }
     }
+    if (typeof source.infoAutoSubmit === 'boolean') target.infoAutoSubmit = source.infoAutoSubmit
     store.saveConfig(userDir, cfg)
     log('info', `缺陷单设置已保存：git 账号=${target.gitUser || '（空）'}`
-      + `，仓库访问账号=${target.gitAuthUser || '（用本机凭据）'}，模型=${target.aiModel || '（空）'}`)
+      + `，仓库访问账号=${target.gitAuthUser || '（用本机凭据）'}，模型=${target.aiModel || '（空）'}`
+      + `，自动提交信息数据=${target.infoAutoSubmit === false ? '关' : '开'}`)
     return snapshot()
   })
 
@@ -533,10 +540,22 @@ function registerIpc() {
         transactNo: String(input.transactNo || '').trim(),
         gitUrl: String(input.gitUrl || '').trim(),
         cacheRoot: path.join(userDir, 'git-cache'),
+        drySubmit: SMOKE_MODE || Boolean(input.drySubmit),
+        lastFingerprint: state.defect.lastFingerprint,
         log,
         onStage: (stage, stageState, detail) => sendDefectStage(stage, stageState, detail),
       })
       state.defect.lastResult = result
+      state.defect.lastMeta = {
+        ticketNo: result.meta.ticketNo,
+        iid: result.meta.iid,
+        title: result.meta.title,
+        gitUrl: result.meta.gitUrl,
+      }
+      if (result.info && result.info.ok && !result.info.skipped) {
+        // 只有真的建了一条，才把这版内容记为「已提交」，避免下一轮重复建
+        state.defect.lastFingerprint = result.meta.fingerprint || ''
+      }
       if (result.errors && result.errors.length) {
         const first = result.errors[0]
         log('warn', `缺陷单总结部分完成：${first.message}`)
@@ -546,6 +565,41 @@ function registerIpc() {
       state.defect.running = false
       broadcast()
     }
+  })
+
+  /** 用界面上（可能被手工改过）的四段文本重新创建一条信息数据。 */
+  ipcMain.handle('defect:submit', async (event, payload) => {
+    const input = payload && typeof payload === 'object' ? payload : {}
+    const cfg = defectConfig()
+
+    let tokenInfo = state.token
+    if (!tokenInfo || !tokenInfo.ok) tokenInfo = findToken()
+    if (!tokenInfo || !tokenInfo.ok) {
+      throw new Error('未能获取 access-token，请先点「重新获取 Token」再试')
+    }
+
+    const fields = input.fields && typeof input.fields === 'object'
+      ? input.fields
+      : (state.defect.lastResult && state.defect.lastResult.fields) || {}
+    if (!String(fields.title || '').trim()) throw new Error('还没有可提交的内容，请先生成总结')
+
+    const meta = state.defect.lastMeta || {}
+    const body = defectInfo.buildInfoPayload({ fields, ticketNo: meta.ticketNo || '', cfg })
+    const response = await defectInfo.submitInfo(cfg, tokenInfo.token, body, { log })
+    const info = {
+      ok: true,
+      skipped: false,
+      iid: response.iid,
+      message: `信息数据已生成（iid: ${response.iid}）`,
+    }
+
+    if (state.defect.lastResult) {
+      state.defect.lastResult.info = info
+      state.defect.lastFingerprint = (state.defect.lastResult.meta
+        && state.defect.lastResult.meta.fingerprint) || ''
+    }
+    log('info', `手动重新提交信息数据：${info.iid}`)
+    return info
   })
 
   ipcMain.handle('app:hide', async () => {
@@ -593,6 +647,10 @@ async function runDefectSmoke() {
     copyButtons: document.querySelectorAll('#defect-result .copy').length,
     errorShown: !document.getElementById('defect-error').hidden,
     errorText: document.getElementById('defect-error').innerText.slice(0, 200),
+    infoShown: !document.getElementById('defect-info').hidden,
+    infoText: document.getElementById('defect-info-text').textContent,
+    submitButtonVisible: Boolean(document.getElementById('btn-defect-submit')
+      && document.getElementById('btn-defect-submit').getBoundingClientRect().width > 0),
     meta: document.getElementById('defect-meta').textContent,
     stages: Array.from(document.querySelectorAll('.stage')).map((node) => node.className),
     layout: (() => {

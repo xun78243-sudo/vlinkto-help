@@ -18,6 +18,7 @@ const store = require('../src/config')
 const ticket = require('../src/defect/ticket')
 const git = require('../src/defect/git')
 const ai = require('../src/defect/ai')
+const defectInfo = require('../src/defect/info')
 
 const TICKET_NO = process.env.DEFECT_TICKET || 'JETABLE2026101400071'
 
@@ -42,6 +43,7 @@ async function main() {
   const userDir = path.join(process.env.APPDATA || os.homedir(), '微联叮小助手')
   const cfg = store.loadConfig(userDir).defect
   const withAi = process.argv.includes('--ai')
+  const withSubmit = process.argv.includes('--submit')
   const gitUrl = process.env.DEFECT_GITURL || cfg.defaultGitUrl
 
   section(`1. 工单查询（${TICKET_NO}）：`)
@@ -94,11 +96,12 @@ async function main() {
   check('更新包提交路径 = 入参地址', gitSection, `更新包提交路径：${gitUrl}`)
 
   section('3. AI 生成：')
+  let summary = null
   if (!withAi) {
     console.log('  跳过（加 --ai 参数才会真实调用模型）')
   } else {
     const started = Date.now()
-    const summary = await ai.summarize(cfg, {
+    summary = await ai.summarize(cfg, {
       title: found.title,
       description: form.description,
       version: form.version,
@@ -122,6 +125,32 @@ async function main() {
   for (const [key, value] of Object.entries(fields)) {
     const preview = String(value).split('\n').slice(0, 3).join(' / ')
     console.log(`        ${key}：${preview}${String(value).length > preview.length ? ' …' : ''}`)
+  }
+
+  section('5. 确认提交：信息数据入参：')
+  const submitFields = {
+    title: found.title,
+    description: form.description || found.title,
+    analysis: summary ? summary.analysis : '（未调用模型）',
+    measures: summary ? `${summary.measures}\n\n${gitSection}` : gitSection,
+  }
+  const infoPayload = defectInfo.buildInfoPayload({ fields: submitFields, ticketNo: found.ticketNo, cfg })
+  const payloadText = JSON.stringify(infoPayload)
+  check('payload 可序列化', payloadText.length > 1000, 'true')
+  check('标题已替换', infoPayload.titleText, found.title)
+  check('iid 是 32 位 hex', /^[0-9a-f]{32}$/.test(infoPayload.iid), 'true')
+  check('infoContent 与 elementList 同步',
+    infoPayload.extendsEntity.infoContent, JSON.stringify(infoPayload.extendsEntity.elementList))
+  console.log(`        ${Buffer.byteLength(payloadText)} 字节，webId=${infoPayload.webId} columnId=${infoPayload.columnId}`)
+  console.log(`        iid=${infoPayload.iid} deployTime=${infoPayload.deployTime} author=${infoPayload.author} source=${infoPayload.source}`)
+
+  if (!withSubmit) {
+    console.log('  跳过真实提交（加 --submit 才会真的创建一条信息数据）')
+  } else {
+    const submitted = await defectInfo.submitInfo(cfg, info.token, infoPayload, { log })
+    check('接口返回 iid', Boolean(submitted.iid), 'true')
+    console.log(`        已创建信息数据：iid=${submitted.iid}`)
+    console.log(`        响应：${JSON.stringify(submitted.raw).slice(0, 300)}`)
   }
 }
 

@@ -5,9 +5,11 @@
  *   → 程序拼装「处理措施 + 更新包提交路径」→ 返回 4 个字段。
  */
 
+const crypto = require('node:crypto')
 const ticket = require('./ticket')
 const git = require('./git')
 const ai = require('./ai')
+const infoApi = require('./info')
 
 const { DefectError } = ticket
 
@@ -129,6 +131,13 @@ async function generate(options) {
     analysis: analysis || `${PLACEHOLDER}${errors.some((item) => item.stage === 'ai') ? `（${errors.find((item) => item.stage === 'ai').message}）` : ''}`,
     measures: measureText || PLACEHOLDER,
   }
+  const fingerprint = fingerprintOf(fields, found.ticketNo, gitUrl)
+
+  // ---------- 5. 确认提交：生成信息数据 ----------
+  stage('submit', 'running')
+  const info = await submitStage({
+    cfg, token, fields, ticketNo: found.ticketNo, fingerprint, options, log, stage, errors,
+  })
 
   const elapsedMs = Date.now() - started
   log('info', `缺陷单总结完成：${fields.title}（${elapsedMs}ms，${commits.length} 条提交）`)
@@ -136,6 +145,7 @@ async function generate(options) {
   return {
     ok: errors.length ? 'partial' : 'full',
     fields,
+    info,
     meta: {
       ticketNo: found.ticketNo,
       iid: found.iid,
@@ -154,9 +164,78 @@ async function generate(options) {
       elapsedMs,
       warnings,
       gitUrl: parsed.branchUrl,
+      fingerprint,
+      infoIid: (info && info.iid) || '',
     },
     errors,
   }
 }
 
-module.exports = { generate }
+/** 四个字段 + 单号 + git 地址的指纹，用来避免同一条内容重复自动提交。 */
+function fingerprintOf(fields, ticketNo, gitUrl) {
+  const text = JSON.stringify({
+    ticketNo: String(ticketNo || ''),
+    gitUrl: String(gitUrl || ''),
+    fields,
+  })
+  return crypto.createHash('sha1').update(text).digest('hex')
+}
+
+/**
+ * 第 5 步：按「冒烟 / 开关 / 指纹」决定是否真的创建信息数据。
+ * 任何失败都只记录到 errors，不影响已经生成的四段文本。
+ */
+async function submitStage({ cfg, token, fields, ticketNo, fingerprint, options, log, stage, errors }) {
+  if (options.drySubmit) {
+    const payload = infoApi.buildInfoPayload({ fields, ticketNo, cfg })
+    const size = JSON.stringify(payload).length
+    log('info', `冒烟模式：已组装信息数据（${size} 字节），未真实提交`)
+    stage('submit', 'done', { skipped: true })
+    return {
+      ok: true, skipped: true, iid: '', message: `冒烟模式：已组装信息数据（${size} 字节），未真实提交`,
+    }
+  }
+
+  if (cfg.infoAutoSubmit === false) {
+    log('info', '已关闭「生成后自动提交」，未创建信息数据')
+    stage('submit', 'done', { skipped: true })
+    return {
+      ok: false, skipped: true, iid: '', message: '未自动提交（设置里关闭了自动提交），可以点「重新提交」',
+    }
+  }
+
+  if (errors.some((item) => item.stage === 'ai')) {
+    log('warn', '分析过程未生成成功，跳过自动提交')
+    stage('submit', 'done', { skipped: true })
+    return {
+      ok: false, skipped: true, iid: '', message: '分析过程未生成成功，未自动提交；改完可点「重新提交」',
+    }
+  }
+
+  if (options.lastFingerprint && options.lastFingerprint === fingerprint) {
+    log('info', '内容与上次提交完全一致，跳过重复提交')
+    stage('submit', 'done', { skipped: true })
+    return {
+      ok: false, skipped: true, iid: '', message: '内容与上次一致，已跳过重复提交',
+    }
+  }
+
+  try {
+    const payload = infoApi.buildInfoPayload({ fields, ticketNo, cfg })
+    const result = await infoApi.submitInfo(cfg, token, payload, { log })
+    stage('submit', 'done', { iid: result.iid })
+    return {
+      ok: true, skipped: false, iid: result.iid, message: `信息数据已生成（iid: ${result.iid}）`,
+    }
+  } catch (error) {
+    const failure = error instanceof DefectError
+      ? error
+      : new DefectError(`提交信息数据失败：${error.message}`)
+    log('error', failure.message + (failure.hint ? `（${failure.hint}）` : ''))
+    errors.push({ stage: 'submit', message: failure.message, hint: failure.hint || '' })
+    stage('submit', 'error', { message: failure.message })
+    return { ok: false, skipped: false, iid: '', message: failure.message }
+  }
+}
+
+module.exports = { generate, fingerprintOf }

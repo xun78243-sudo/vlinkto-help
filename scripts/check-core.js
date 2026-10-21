@@ -148,6 +148,7 @@ if (tokenInfo.ok) {
 const defectTicket = require(path.join(__dirname, '..', 'src', 'defect', 'ticket.js'))
 const defectGit = require(path.join(__dirname, '..', 'src', 'defect', 'git.js'))
 const defectAi = require(path.join(__dirname, '..', 'src', 'defect', 'ai.js'))
+const defectInfo = require(path.join(__dirname, '..', 'src', 'defect', 'info.js'))
 
 section('单号 / iid 解析：')
 check('大写并去空格', defectTicket.normalizeTicketNo(' jetable2026101400071 '), 'JETABLE2026101400071')
@@ -251,6 +252,50 @@ check('user 带上提交', aiMessages[1].content.includes('fix:1'), 'true')
 check('描述按上限截断',
   defectAi.buildMessages({ title: 'x', description: 'D'.repeat(5000), describeMaxChars: 100 })
     .length, '2')
+
+section('确认提交：信息数据入参：')
+const infoSampleFields = {
+  title: '项目和产品缺陷_演示（钱芳清）',
+  description: '描述第一行\n描述第二行 <tag> & "引号"',
+  analysis: '1. 分析一\n2. 分析二',
+  measures: '1. 措施一\n\n更新包提交路径：http://h/p/tree/b',
+}
+const infoPayload = defectInfo.buildInfoPayload({
+  fields: infoSampleFields,
+  ticketNo: 'JETABLE2026101400071',
+  cfg: { gitName: '徐宁', infoSource: '产品研发一部' },
+  now: 1792555313268,
+})
+const infoTitle = JSON.stringify({ text: infoSampleFields.title, style: {} })
+check('title = 工单标题', infoPayload.title, infoTitle)
+check('jsonTitle 与 title 一致', infoPayload.jsonTitle, infoTitle)
+check('titleText = 工单标题', infoPayload.titleText, infoSampleFields.title)
+check('iid 是 32 位 hex', /^[0-9a-f]{32}$/.test(infoPayload.iid), 'true')
+check('iid 每次不同', infoPayload.iid === defectInfo.newIid(), 'false')
+check('author = gitName', infoPayload.author, '徐宁')
+check('source 取配置', infoPayload.source, '产品研发一部')
+check('deployTime = 传入时间', infoPayload.deployTime, '1792555313268')
+check('webId 同步到 contentAttributeEntity',
+  infoPayload.contentAttributeEntity.webId, infoPayload.webId)
+
+const infoList = infoPayload.extendsEntity.elementList
+const byField = (name) => (infoList.find((item) => item.fieldName === name) || {}).fieldValue
+check('elementList 7 个字段', infoList.length, '7')
+check('标题字段值 = 工单标题', byField('biaoti'), infoSampleFields.title)
+check('问题描述原样', byField('gdwtmx'), infoSampleFields.description)
+check('分析过程为富文本', byField('gdfxgc').startsWith('<p><span style="'), 'true')
+check('分析过程两段', (byField('gdfxgc').match(/<p>/g) || []).length, '2')
+check('信息内容含分析文本', byField('gdfxgc').includes('2. 分析二'), 'true')
+check('措施保留更新包路径', byField('gdclcsjlj').includes('更新包提交路径：http://h/p/tree/b'), 'true')
+check('富文本转义了尖括号', defectInfo.toRichText('a < b & c'),
+  `<p><span style="${defectInfo.SPAN_STYLE}">a &lt; b &amp; c</span></p>`)
+check('infoContent 与 elementList 同步',
+  infoPayload.extendsEntity.infoContent, JSON.stringify(infoList))
+check('固定选项保持原样', byField('gongdlx'), 'pSrHI3jbsOVgimdLIA9pj')
+check('标题为空退回工单号',
+  defectInfo.buildInfoPayload({ fields: { title: '' }, ticketNo: 'JET1' }).titleText, 'JET1')
+check('空内容不报错',
+  defectInfo.buildInfoPayload({ fields: {} }).extendsEntity.elementList.length, '7')
 
 // ============================================================================
 // 五、可选：真实接口（只判定，不建日程）

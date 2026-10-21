@@ -192,6 +192,8 @@ async function fetchTicketForm(cfg, token, iid, { log = () => {} } = {}) {
 
 module.exports = {
   DefectError,
+  okCode,
+  describeFailure,
   normalizeTicketNo,
   extractIid,
   fetchPendingPage,

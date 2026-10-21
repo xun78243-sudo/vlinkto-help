@@ -120,9 +120,15 @@
             <span class="stage" data-stage="ticket"><i></i>① 查工单</span>
             <span class="stage" data-stage="git"><i></i>② 拉取提交</span>
             <span class="stage" data-stage="ai"><i></i>③ AI 生成</span>
+            <span class="stage" data-stage="submit"><i></i>④ 提交信息</span>
           </div>
 
           <div class="defect-error" id="defect-error" hidden></div>
+
+          <div class="defect-info" id="defect-info" hidden>
+            <span class="defect-info-text" id="defect-info-text"></span>
+            <button id="btn-defect-submit" class="btn ghost small" type="button">重新提交</button>
+          </div>
 
           <div class="defect-settings" id="defect-settings" hidden>
             <div class="form-row">
@@ -158,6 +164,13 @@
             <p class="hint field-note">
               仓库账号密码仅存本机 config.json，用于 git 拉取时做 Basic 认证；两栏都填才生效
             </p>
+            <div class="form-row align-center">
+              <label class="switch" title="开启 / 关闭生成后自动提交">
+                <input type="checkbox" id="set-info-auto">
+                <span class="slider"></span>
+              </label>
+              <span class="switch-label">生成后自动提交「信息数据」（调用 info/add 建一条记录）</span>
+            </div>
             <div class="actions">
               <button id="btn-defect-save" class="btn primary small" type="button">保存设置</button>
               <span class="hint" id="defect-settings-hint">提交人按「账号 / 名称」匹配作者名或邮箱</span>

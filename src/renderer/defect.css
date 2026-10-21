@@ -213,6 +213,16 @@ body {
   margin-bottom: 12px;
 }
 
+.form-row.align-center {
+  align-items: center;
+}
+
+.switch-label {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -338,6 +348,47 @@ body {
 
 .defect-error[hidden] {
   display: none;
+}
+
+/* 确认提交（信息数据）结果条 */
+.defect-info {
+  margin-top: 12px;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: #eff6ff;
+  color: #1e40af;
+  font-size: 13px;
+}
+
+.defect-info[hidden] {
+  display: none;
+}
+
+.defect-info.is-error {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #b91c1c;
+}
+
+.defect-info.is-muted {
+  border-color: var(--line);
+  background: #f9fafb;
+  color: var(--muted);
+}
+
+.defect-info-text {
+  flex: 1;
+  min-width: 0;
+  word-break: break-all;
+  user-select: text;
+}
+
+.defect-info .btn {
+  flex: none;
 }
 
 .defect-error .hint {
