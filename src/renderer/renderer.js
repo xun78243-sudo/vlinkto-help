@@ -226,6 +226,12 @@ function showDefectError(message, hint) {
   if (hint) box.appendChild(el('span', 'hint', hint))
 }
 
+/** ipcRenderer.invoke 抛出的错误前面会带一长串前缀，这里剥掉。 */
+function cleanError(error) {
+  const text = error && error.message ? error.message : String(error)
+  return text.replace(/^Error invoking remote method '[^']*':\s*(Error:\s*)?/, '')
+}
+
 function clearDefectError() {
   const box = $('defect-error')
   box.hidden = true
@@ -234,7 +240,9 @@ function clearDefectError() {
 
 function autoSize(node) {
   node.style.height = 'auto'
-  node.style.height = `${Math.max(60, node.scrollHeight + 2)}px`
+  // 处理措施那一栏内容很长，限高后内部滚动，避免整页被拉得太长
+  const height = Math.min(Math.max(60, node.scrollHeight + 2), 420)
+  node.style.height = `${height}px`
 }
 
 function renderDefectResult(result) {
@@ -365,7 +373,7 @@ async function generateDefect() {
       showDefectError('已生成，但有以下提示：', result.meta.warnings.join('；'))
     }
   } catch (error) {
-    showDefectError(error && error.message ? error.message : String(error))
+    showDefectError(cleanError(error))
     $('defect-meta').textContent = '生成失败'
   } finally {
     button.disabled = false

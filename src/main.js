@@ -586,6 +586,28 @@ async function runDefectSmoke() {
     errorText: document.getElementById('defect-error').innerText.slice(0, 200),
     meta: document.getElementById('defect-meta').textContent,
     stages: Array.from(document.querySelectorAll('.stage')).map((node) => node.className),
+    layout: (() => {
+      const rect = (selector) => {
+        const node = document.querySelector(selector)
+        if (!node) return null
+        const box = node.getBoundingClientRect()
+        return { w: Math.round(box.width), h: Math.round(box.height) }
+      }
+      const textareas = Array.from(document.querySelectorAll('#defect-result textarea'))
+        .map((node) => Math.round(node.getBoundingClientRect().height))
+      const visibleCopies = Array.from(document.querySelectorAll('#defect-result .copy'))
+        .filter((node) => node.getBoundingClientRect().width > 0).length
+      return {
+        tabs: rect('.tabs'),
+        generateButton: rect('#btn-defect-generate'),
+        ticketInput: rect('#defect-ticket'),
+        gitInput: rect('#defect-giturl'),
+        resultBlock: rect('#defect-result'),
+        textareas,
+        visibleCopies,
+        horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+      }
+    })(),
   }))()`)
   result.ticketNo = ticketNo
   result.gitUrl = gitUrl
@@ -652,6 +674,14 @@ if (!gotLock) {
 
             if (withDefect) {
               console.log(`SMOKE_DEFECT ${JSON.stringify(await runDefectSmoke())}`)
+            }
+
+            const capture = process.argv.find((item) => item.startsWith('--capture='))
+            if (capture) {
+              const file = capture.slice('--capture='.length)
+              const image = await mainWindow.webContents.capturePage()
+              fs.writeFileSync(file, image.toPNG())
+              console.log(`CAPTURE ${file}`)
             }
 
             if (withRun) {

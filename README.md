@@ -212,6 +212,14 @@ npm run smoke:defect   # Electron 端到端：界面点「生成总结」并读�
 `npm run check:defect` 会打印工单定位结果、拉到的提交数与本人提交数，`--ai`（默认带上）还会
 打印模型生成的分析与措施，便于判断模型输出质量。
 
+两个 Electron 冒烟脚本都会输出一行 JSON（`SMOKE` / `SMOKE_DEFECT`），除内容外还包含布局几何量
+（页签、输入框、结果块尺寸、是否横向溢出），可用于回归检查样式有没有被改坏。
+加 `--capture=<路径>` 还会把窗口截图存成 PNG：
+
+```powershell
+node_modules\electron\dist\electron.exe . --smoke --smoke-defect --capture=%TEMP%\defect.png
+```
+
 ---
 
 ## 打包成安装包

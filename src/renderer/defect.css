@@ -244,6 +244,8 @@
   display: block;
   width: 100%;
   min-height: 60px;
+  max-height: 420px;
+  overflow: auto;
   padding: 12px;
   border: 0;
   border-radius: 0;
