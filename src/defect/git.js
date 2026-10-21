@@ -16,21 +16,31 @@ const { DefectError } = require('./ticket')
 const FIELD_SEP = '\u001f'
 
 /**
- * 生成 HTTP Basic 认证参数。
- * 账号密码都填了才启用；启用时同时清掉 credential.helper，避免凭据助手弹窗/挂起。
- * 密码只在内存里编码成头部，不写日志、不进 URL（URL 会出现在进程命令行里）。
+ * 生成 Basic 认证的配置。
+ * - 凭据本体走**环境变量**（git 的 GIT_CONFIG_COUNT 机制），不进命令行、不进 URL、
+ *   不写日志，进程列表里看不到；
+ * - 命令行只放一个不带密钥的 `-c credential.helper=`，禁用凭据助手以免弹窗/挂起。
+ * 账号密码都填了才启用。
  */
-function authArgs(auth) {
+function authSetup(auth) {
   const user = String((auth && auth.user) || '').trim()
   const password = String((auth && auth.password) || '')
-  if (!user || !password) return []
+  if (!user || !password) return { env: {}, args: [] }
   const token = Buffer.from(`${user}:${password}`, 'utf8').toString('base64')
-  return ['-c', 'credential.helper=', '-c', `http.extraheader=AUTHORIZATION: Basic ${token}`]
+  return {
+    env: {
+      GIT_CONFIG_COUNT: '1',
+      GIT_CONFIG_KEY_0: 'http.extraheader',
+      GIT_CONFIG_VALUE_0: `AUTHORIZATION: Basic ${token}`,
+    },
+    args: ['-c', 'credential.helper='],
+  }
 }
 
 function run(args, options = {}) {
   const { cwd, timeoutMs = 60000, auth = null } = options
-  const fullArgs = [...authArgs(auth), ...args]
+  const { env: authEnv, args: authArgs } = authSetup(auth)
+  const fullArgs = [...authArgs, ...args]
   return new Promise((resolve) => {
     execFile('git', fullArgs, {
       cwd,
@@ -39,6 +49,7 @@ function run(args, options = {}) {
       windowsHide: true,
       env: {
         ...process.env,
+        ...authEnv,
         GIT_TERMINAL_PROMPT: '0', // 不要卡在交互输入上
         GCM_INTERACTIVE: 'never',
         GIT_ASKPASS: 'echo',      // 凭据缺失时立刻失败，而不是弹窗/挂起
@@ -254,7 +265,7 @@ function formatGitSection({
 }
 
 module.exports = {
-  authArgs,
+  authSetup,
   parseGitUrl,
   parseLogOutput,
   filterCommits,

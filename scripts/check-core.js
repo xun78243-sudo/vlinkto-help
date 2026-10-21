@@ -191,13 +191,15 @@ check('分支名带斜杠', defectGit.parseGitUrl('http://h/g/p/tree/release/4.3
 check('末尾斜杠容错', defectGit.parseGitUrl('http://h/g/p/tree/main/').branch, 'main')
 
 section('仓库访问凭据：')
-const authWith = defectGit.authArgs({ user: 'u1', password: 'p#1' })
-check('生成 4 个参数', authWith.length, '4')
-check('清掉凭据助手避免弹窗', authWith[1], 'credential.helper=')
+const authCfg = defectGit.authSetup({ user: 'u1', password: 'p#1' })
+check('凭据走环境变量（不在命令行）', authCfg.env.GIT_CONFIG_COUNT, '1')
+check('头部键名', authCfg.env.GIT_CONFIG_KEY_0, 'http.extraheader')
 check('Basic 头内容正确',
-  Buffer.from(String(authWith[3]).split('Basic ')[1], 'base64').toString(), 'u1:p#1')
-check('没填账号密码时不用认证头', defectGit.authArgs({}).length, '0')
-check('只填账号时退回本机凭据', defectGit.authArgs({ user: 'u1' }).length, '0')
+  Buffer.from(String(authCfg.env.GIT_CONFIG_VALUE_0).replace('AUTHORIZATION: Basic ', ''),
+    'base64').toString(), 'u1:p#1')
+check('命令行只禁用凭据助手', authCfg.args.join(' '), '-c credential.helper=')
+check('没填账号密码时不用认证', Object.keys(defectGit.authSetup({}).env).length, '0')
+check('只填账号时退回本机凭据', Object.keys(defectGit.authSetup({ user: 'u1' }).env).length, '0')
 
 section('提交人过滤与更新包拼装：')
 const sampleCommits = [

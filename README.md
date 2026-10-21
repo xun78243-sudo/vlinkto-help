@@ -83,7 +83,9 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
   （`%APPDATA%\微联叮小助手\git-cache\<hash>`）后 `git log`。
 - 认证有两种方式，**填了设置里的仓库账号密码就用 Basic 认证（优先）**，否则复用本机凭据
   （Windows 凭据管理器里记住的）；后一种要求这台机器上曾经 clone / pull 过该仓库。
-  密码只在本机 `config.json` 里，不进仓库、不写日志，拉取时也不会拼进 URL（避免出现在进程命令行里）。
+  密码只存在本机 `config.json` 里，不进仓库、不写日志；拉取时通过 git 的
+  **环境变量配置**（`GIT_CONFIG_COUNT`）传 `Authorization: Basic`，既不拼进 URL，
+  也不会出现在进程命令行里；命令行只有一条不带密钥的 `-c credential.helper=`（禁用凭据助手防弹窗）。
 - 提交人过滤：「git 账号」或「git 名称」命中作者名 / 邮箱即算本人（默认取本机 git 配置）。
 - 分支不存在时会列出相近分支名；凭据缺失会明确提示先手动 clone 一次。
 
