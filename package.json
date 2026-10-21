@@ -16,7 +16,8 @@
     "check:defect": "node scripts/check-defect.js --ai",
     "smoke": "electron . --smoke --smoke-run",
     "smoke:defect": "electron . --smoke --smoke-defect",
-    "dist": "electron-builder --win"
+    "dist": "electron-builder --win",
+    "dist:local": "electron-builder --win --config.electronDist=node_modules/electron/dist"
   },
   "devDependencies": {
     "electron": "^44.9.1",

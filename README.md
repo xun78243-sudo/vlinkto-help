@@ -254,6 +254,10 @@ npm run dist        # = electron-builder --win
 > 之后命中 `%LOCALAPPDATA%\electron\Cache` 缓存）；NSIS 工具链已在
 > `%LOCALAPPDATA%\electron-builder\Cache` 缓存，可离线重复打包。
 >
+> 若打包时报 `read ECONNRESET` / `ETIMEDOUT`（electron-builder 打包时会联网校验 electron 包），
+> 改用 `npm run dist:local` —— 它直接复用本机 `node_modules\electron\dist`，完全不联网，
+> 产物一样。
+>
 > 若打包中途被中断，可能残留临时锁 `%TEMP%\eb-dl-*.lock*`，删掉再打包即可。
 
 ---
