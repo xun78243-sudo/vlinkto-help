@@ -53,6 +53,31 @@ const DEFAULTS = {
     enabled: false,
     intervalHours: 3,
   },
+  defect: {
+    // 工单接口（与聊天记录接口同一个网关，共用自动获取的 access-token）
+    apiHost: 'https://work.hanweb.com',
+    listPath: '/api-gateway/jpaas-jtodo-server/manager/new-pending/list',
+    detailPath: '/api-gateway/common-workflow-server/manager/business/pending/detail/formData',
+    sortRole: 3,
+    applyState: 0,
+    pageSize: 100,
+    maxTickets: 100,
+    // 提交人过滤：账号 / 中文名，任意一项命中作者名或邮箱即算
+    gitUser: 'xuning',
+    gitName: '徐宁',
+    defaultGitUrl: 'http://192.168.5.15/jpaas/jagent/be/jagent-web/tree/release-4.3.5.17',
+    commitLimit: 20,
+    gitSectionLimit: 10,
+    fetchDepth: 200,
+    gitTimeoutMs: 60000,
+    // 内网 OpenAI 兼容推理服务
+    aiBaseUrl: 'http://192.168.10.51:31587/common-inference-server/interface/v1',
+    aiModel: 'Qwen3.6-27B',
+    aiApiKey: '',
+    aiTimeoutMs: 120000,
+    aiMaxTokens: 2048,
+    describeMaxChars: 4000,
+  },
   app: {
     closeToTray: true,
     autoLaunch: false,

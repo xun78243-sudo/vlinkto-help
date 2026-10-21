@@ -112,6 +112,13 @@ function render(snapshotData) {
       ? '关闭窗口后会隐藏到系统托盘，托盘图标右键可重新打开或退出'
       : '关闭窗口将退出应用'
   }
+
+  if (snapshotData.defect) {
+    const gitInput = $('defect-giturl')
+    if (gitInput && !gitInput.value && snapshotData.defect.defaultGitUrl) {
+      gitInput.value = snapshotData.defect.defaultGitUrl
+    }
+  }
 }
 
 function appendLog(entry) {
@@ -179,10 +186,261 @@ function bind() {
   })
 }
 
+// ---------------------------------------------------------------- 缺陷单总结
+
+const DEFECT_FIELDS = ['title', 'description', 'analysis', 'measures']
+const STAGE_TEXT = { ticket: '查工单', git: '拉取提交', ai: 'AI 生成' }
+
+function switchPane(name) {
+  for (const tab of document.querySelectorAll('.tab')) {
+    tab.classList.toggle('is-active', tab.dataset.pane === name)
+  }
+  $('pane-exam').hidden = name !== 'exam'
+  $('pane-defect').hidden = name !== 'defect'
+}
+
+function resetStages() {
+  const wrap = $('defect-stages')
+  wrap.hidden = true
+  for (const node of wrap.querySelectorAll('.stage')) {
+    node.classList.remove('is-running', 'is-done', 'is-error')
+  }
+}
+
+function setStage(stage, stageState) {
+  const wrap = $('defect-stages')
+  wrap.hidden = false
+  const node = wrap.querySelector(`.stage[data-stage="${stage}"]`)
+  if (!node) return
+  node.classList.remove('is-running', 'is-done', 'is-error')
+  if (stageState === 'running') node.classList.add('is-running')
+  else if (stageState === 'done') node.classList.add('is-done')
+  else if (stageState === 'error') node.classList.add('is-error')
+}
+
+function showDefectError(message, hint) {
+  const box = $('defect-error')
+  box.textContent = ''
+  box.hidden = false
+  box.appendChild(el('div', '', message || '生成失败'))
+  if (hint) box.appendChild(el('span', 'hint', hint))
+}
+
+function clearDefectError() {
+  const box = $('defect-error')
+  box.hidden = true
+  box.textContent = ''
+}
+
+function autoSize(node) {
+  node.style.height = 'auto'
+  node.style.height = `${Math.max(60, node.scrollHeight + 2)}px`
+}
+
+function renderDefectResult(result) {
+  const fields = (result && result.fields) || {}
+  $('defect-result').hidden = false
+  for (const key of DEFECT_FIELDS) {
+    const node = $(`out-${key}`)
+    node.value = fields[key] || ''
+    autoSize(node)
+  }
+
+  const meta = (result && result.meta) || {}
+  const seconds = ((Number(meta.elapsedMs) || 0) / 1000).toFixed(1)
+  const parts = []
+  if (meta.title) parts.push(meta.title)
+  if (meta.branch) parts.push(`分支 ${meta.branch}`)
+  parts.push(`提交 ${meta.commitCount || 0}/${meta.scannedCommits || 0} 条`)
+  if (meta.model) parts.push(meta.model)
+  parts.push(`${seconds}s`)
+  $('defect-meta').textContent = parts.join(' · ')
+  $('defect-meta').title = (meta.commitList || [])
+    .map((item) => `${item.short} ${item.date} ${item.subject}`)
+    .join('\n')
+
+  for (const node of document.querySelectorAll('.copy')) {
+    node.classList.remove('is-copied')
+    node.textContent = '复制'
+  }
+}
+
+async function copyField(button) {
+  const key = button.dataset.copy
+  const node = $(`out-${key}`)
+  const text = node ? node.value : ''
+  await api.copy(text)
+  button.textContent = '已复制'
+  button.classList.add('is-copied')
+  setTimeout(() => {
+    button.textContent = '复制'
+    button.classList.remove('is-copied')
+  }, 1500)
+}
+
+async function loadDefectSettings() {
+  const current = snapshot || await api.snapshot()
+  const defectInfo = current.defect || {}
+
+  $('set-git-user').value = defectInfo.gitUser || ''
+  $('set-git-name').value = defectInfo.gitName || ''
+  $('set-git-url').value = defectInfo.defaultGitUrl || ''
+  $('set-apikey').value = ''
+  $('set-apikey').placeholder = defectInfo.hasApiKey ? '已保存（留空则不修改）' : '通常留空即可'
+
+  if (!$('defect-giturl').value && defectInfo.defaultGitUrl) {
+    $('defect-giturl').value = defectInfo.defaultGitUrl
+  }
+
+  const select = $('set-model')
+  select.textContent = ''
+  let models = []
+  try {
+    models = await api.defectModels()
+  } catch (error) {
+    models = []
+  }
+  const options = models.length ? models : [defectInfo.aiModel].filter(Boolean)
+  const seen = new Set()
+  for (const id of options) {
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    const option = el('option', '', id)
+    option.value = id
+    select.appendChild(option)
+  }
+  if (defectInfo.aiModel && !seen.has(defectInfo.aiModel)) {
+    const option = el('option', '', `${defectInfo.aiModel}（当前配置）`)
+    option.value = defectInfo.aiModel
+    select.appendChild(option)
+  }
+  select.value = defectInfo.aiModel || ''
+}
+
+async function submitDefectSettings() {
+  const patch = {
+    gitUser: $('set-git-user').value,
+    gitName: $('set-git-name').value,
+    defaultGitUrl: $('set-git-url').value,
+    aiModel: $('set-model').value,
+  }
+  const key = $('set-apikey').value.trim()
+  if (key) patch.aiApiKey = key
+  const next = await api.saveDefectSettings(patch)
+  render(next)
+  $('set-apikey').value = ''
+  $('set-apikey').placeholder = '已保存（留空则不修改）'
+  return next
+}
+
+async function generateDefect() {
+  const transactNo = $('defect-ticket').value.trim()
+  const gitUrl = $('defect-giturl').value.trim()
+
+  clearDefectError()
+  if (!transactNo) {
+    showDefectError('请先输入工单编号', '例如 JETABLE2026101400071')
+    $('defect-ticket').focus()
+    return
+  }
+  if (!gitUrl) {
+    showDefectError('请先输入 git 地址', '形如 http://host/group/project/tree/分支名')
+    $('defect-giturl').focus()
+    return
+  }
+
+  const button = $('btn-defect-generate')
+  button.disabled = true
+  button.textContent = '生成中…'
+  $('defect-meta').textContent = '正在查询工单并拉取提交记录…'
+  resetStages()
+
+  try {
+    const result = await api.generateDefect({ transactNo, gitUrl })
+    renderDefectResult(result)
+    if (result.errors && result.errors.length) {
+      const first = result.errors[0]
+      showDefectError(`${STAGE_TEXT[first.stage] || first.stage}失败：${first.message}`, first.hint)
+    } else if (result.meta && result.meta.warnings && result.meta.warnings.length) {
+      showDefectError('已生成，但有以下提示：', result.meta.warnings.join('；'))
+    }
+  } catch (error) {
+    showDefectError(error && error.message ? error.message : String(error))
+    $('defect-meta').textContent = '生成失败'
+  } finally {
+    button.disabled = false
+    button.textContent = '生成总结'
+  }
+}
+
+function bindDefect() {
+  $('tabs').addEventListener('click', (event) => {
+    const tab = event.target.closest('.tab')
+    if (!tab) return
+    switchPane(tab.dataset.pane)
+  })
+
+  $('btn-defect-generate').addEventListener('click', generateDefect)
+
+  $('btn-defect-settings').addEventListener('click', async () => {
+    const panel = $('defect-settings')
+    const willShow = panel.hidden
+    panel.hidden = !willShow
+    if (willShow) {
+      await loadDefectSettings()
+      $('set-git-user').focus()
+    }
+  })
+
+  $('btn-defect-save').addEventListener('click', async () => {
+    const button = $('btn-defect-save')
+    button.disabled = true
+    try {
+      await submitDefectSettings()
+      $('defect-settings-hint').textContent = '已保存'
+      setTimeout(() => {
+        $('defect-settings-hint').textContent = '提交人按「账号 / 名称」匹配作者名或邮箱'
+      }, 2000)
+    } catch (error) {
+      showDefectError(`保存设置失败：${error.message}`)
+    } finally {
+      button.disabled = false
+    }
+  })
+
+  $('defect-result').addEventListener('click', (event) => {
+    const button = event.target.closest('.copy')
+    if (!button) return
+    copyField(button)
+  })
+
+  for (const key of DEFECT_FIELDS) {
+    const node = $(`out-${key}`)
+    if (node) node.addEventListener('input', () => autoSize(node))
+  }
+
+  $('defect-ticket').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      $('defect-giturl').focus()
+    }
+  })
+  $('defect-giturl').addEventListener('keydown', (event) => {
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      generateDefect()
+    }
+  })
+}
+
 async function init() {
   bind()
+  bindDefect()
   api.onState((payload) => render(payload))
   api.onLog((entry) => appendLog(entry))
+  api.onDefectStage((payload) => {
+    if (payload && payload.stage) setStage(payload.stage, payload.state)
+  })
 
   const [initial, history] = await Promise.all([api.snapshot(), api.logs()])
   render(initial)

@@ -6,6 +6,7 @@
         content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:">
   <title>微联叮小助手</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="defect.css">
 </head>
 <body>
   <header class="titlebar">
@@ -13,9 +14,13 @@
       <div class="logo">叮</div>
       <div class="brand-text">
         <h1>微联叮小助手</h1>
-        <p>自动获取 access-token · 按聊天记录自动创建考试日程</p>
+        <p>自动获取 access-token · 考试日程与缺陷单总结</p>
       </div>
     </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab is-active" data-pane="exam" type="button">考试日程</button>
+      <button class="tab" data-pane="defect" type="button">缺陷单总结</button>
+    </nav>
     <span class="version" id="version">v1.0.0</span>
   </header>
 
@@ -34,48 +39,156 @@
       </div>
     </section>
 
-    <section class="card">
-      <div class="card-head">
-        <div class="card-title">
-          <h2>考试日程小助理</h2>
-          <p class="hint" id="exam-hint">打开开关后立即检测一次，之后每 3 小时自动执行</p>
+    <!-- ================= 考试日程 ================= -->
+    <div class="pane" id="pane-exam">
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <h2>考试日程小助理</h2>
+            <p class="hint" id="exam-hint">打开开关后立即检测一次，之后每 3 小时自动执行</p>
+          </div>
+          <label class="switch" title="开启 / 关闭自动检测">
+            <input type="checkbox" id="exam-switch">
+            <span class="slider"></span>
+          </label>
         </div>
-        <label class="switch" title="开启 / 关闭自动检测">
-          <input type="checkbox" id="exam-switch">
-          <span class="slider"></span>
-        </label>
-      </div>
 
-      <div class="stat-row">
-        <div class="stat">
-          <span class="stat-label">运行状态</span>
-          <strong id="exam-state">已关闭</strong>
+        <div class="stat-row">
+          <div class="stat">
+            <span class="stat-label">运行状态</span>
+            <strong id="exam-state">已关闭</strong>
+          </div>
+          <div class="stat">
+            <span class="stat-label">上次执行</span>
+            <strong id="exam-last">—</strong>
+          </div>
+          <div class="stat">
+            <span class="stat-label">下次执行</span>
+            <strong id="exam-next">—</strong>
+          </div>
+          <div class="stat">
+            <span class="stat-label">上次结果</span>
+            <strong id="exam-result">—</strong>
+          </div>
         </div>
-        <div class="stat">
-          <span class="stat-label">上次执行</span>
-          <strong id="exam-last">—</strong>
-        </div>
-        <div class="stat">
-          <span class="stat-label">下次执行</span>
-          <strong id="exam-next">—</strong>
-        </div>
-        <div class="stat">
-          <span class="stat-label">上次结果</span>
-          <strong id="exam-result">—</strong>
-        </div>
-      </div>
 
-      <div class="actions">
-        <button id="btn-run" class="btn primary">立即执行一次</button>
-        <label class="check">
-          <input type="checkbox" id="dry-run">
-          <span>试运行（只判定，不创建日程）</span>
-        </label>
-        <span class="spacer"></span>
-        <button id="btn-logs" class="btn ghost small">打开日志目录</button>
-        <button id="btn-config" class="btn ghost small">打开配置文件</button>
-      </div>
-    </section>
+        <div class="actions">
+          <button id="btn-run" class="btn primary">立即执行一次</button>
+          <label class="check">
+            <input type="checkbox" id="dry-run">
+            <span>试运行（只判定，不创建日程）</span>
+          </label>
+          <span class="spacer"></span>
+          <button id="btn-logs" class="btn ghost small">打开日志目录</button>
+          <button id="btn-config" class="btn ghost small">打开配置文件</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- ================= 缺陷单总结 ================= -->
+    <div class="pane" id="pane-defect" hidden>
+      <section class="card">
+        <div class="card-head">
+          <div class="card-title">
+            <h2>缺陷单总结助手</h2>
+            <p class="hint">工单编号 + git 分支地址 → 标题 / 问题描述 / 分析过程 / 处理措施，每项可一键复制</p>
+          </div>
+          <button id="btn-defect-settings" class="btn ghost small" type="button">设置</button>
+        </div>
+
+        <div class="form-row">
+          <label class="field">
+            <span>工单编号</span>
+            <input id="defect-ticket" type="text" spellcheck="false"
+                   placeholder="例如 JETABLE2026101400071">
+          </label>
+          <label class="field grow">
+            <span>git 地址（含分支）</span>
+            <input id="defect-giturl" type="text" spellcheck="false"
+                   placeholder="http://host/group/project/tree/release-4.3.5.17">
+          </label>
+        </div>
+
+        <div class="actions">
+          <button id="btn-defect-generate" class="btn primary" type="button">生成总结</button>
+          <span class="spacer"></span>
+          <span class="defect-meta" id="defect-meta">—</span>
+        </div>
+
+        <div class="defect-stages" id="defect-stages" hidden>
+          <span class="stage" data-stage="ticket"><i></i>① 查工单</span>
+          <span class="stage" data-stage="git"><i></i>② 拉取提交</span>
+          <span class="stage" data-stage="ai"><i></i>③ AI 生成</span>
+        </div>
+
+        <div class="defect-error" id="defect-error" hidden></div>
+
+        <div class="defect-settings" id="defect-settings" hidden>
+          <div class="form-row">
+            <label class="field">
+              <span>git 账号</span>
+              <input id="set-git-user" type="text" spellcheck="false" placeholder="xuning">
+            </label>
+            <label class="field">
+              <span>git 名称（中文名）</span>
+              <input id="set-git-name" type="text" spellcheck="false" placeholder="徐宁">
+            </label>
+            <label class="field grow">
+              <span>AI 模型</span>
+              <select id="set-model"></select>
+            </label>
+          </div>
+          <div class="form-row">
+            <label class="field grow">
+              <span>默认 git 地址</span>
+              <input id="set-git-url" type="text" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>AI 接口密钥（可留空）</span>
+              <input id="set-apikey" type="password" spellcheck="false" placeholder="通常留空即可">
+            </label>
+          </div>
+          <div class="actions">
+            <button id="btn-defect-save" class="btn primary small" type="button">保存设置</button>
+            <span class="hint" id="defect-settings-hint">提交人按「账号 / 名称」匹配作者名或邮箱</span>
+          </div>
+        </div>
+
+        <div class="defect-result" id="defect-result" hidden>
+          <div class="result-block">
+            <div class="result-head">
+              <h3>标题</h3>
+              <button class="btn ghost small copy" data-copy="title" type="button">复制</button>
+            </div>
+            <textarea id="out-title" class="result-body" rows="2" spellcheck="false"></textarea>
+          </div>
+
+          <div class="result-block">
+            <div class="result-head">
+              <h3>工单问题描述</h3>
+              <button class="btn ghost small copy" data-copy="description" type="button">复制</button>
+            </div>
+            <textarea id="out-description" class="result-body" rows="3" spellcheck="false"></textarea>
+          </div>
+
+          <div class="result-block">
+            <div class="result-head">
+              <h3>工单分析过程</h3>
+              <button class="btn ghost small copy" data-copy="analysis" type="button">复制</button>
+            </div>
+            <textarea id="out-analysis" class="result-body" rows="4" spellcheck="false"></textarea>
+          </div>
+
+          <div class="result-block">
+            <div class="result-head">
+              <h3>工单处理措施及更新包提交路径</h3>
+              <button class="btn ghost small copy" data-copy="measures" type="button">复制</button>
+            </div>
+            <textarea id="out-measures" class="result-body" rows="8" spellcheck="false"></textarea>
+          </div>
+        </div>
+      </section>
+    </div>
 
     <section class="card log-card">
       <div class="card-head">

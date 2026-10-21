@@ -142,7 +142,110 @@ if (tokenInfo.ok) {
 }
 
 // ============================================================================
-// 四、可选：真实接口（只判定，不建日程）
+// 四、缺陷单总结助手：纯函数
+// ============================================================================
+
+const defectTicket = require(path.join(__dirname, '..', 'src', 'defect', 'ticket.js'))
+const defectGit = require(path.join(__dirname, '..', 'src', 'defect', 'git.js'))
+const defectAi = require(path.join(__dirname, '..', 'src', 'defect', 'ai.js'))
+
+section('单号 / iid 解析：')
+check('大写并去空格', defectTicket.normalizeTicketNo(' jetable2026101400071 '), 'JETABLE2026101400071')
+check('相对地址取 iid', defectTicket.extractIid('/index.html#/tododetail?iid=36cc6a62'), '36cc6a62')
+check('绝对地址取 iid', defectTicket.extractIid('https://x/y/index.html#/tododetail?iid=abc&t=1'), 'abc')
+check('无 iid 返回空', defectTicket.extractIid('https://x/y'), '')
+
+section('工单详情 formData.model 解析：')
+const modelPayload = {
+  data: {
+    prepareData: {
+      formData: {
+        model: JSON.stringify([
+          { fieldName: 'nrxq', fieldValueTwo: 'claw后台重连超时' },
+          { fieldName: 'banbenhao', fieldValueTwo: '4.3.8.2' },
+        ]),
+      },
+    },
+  },
+}
+check('JSON 字符串能解析成数组', defectTicket.parseModelFields(modelPayload).length, '2')
+check('取 nrxq',
+  defectTicket.pickField(defectTicket.parseModelFields(modelPayload), 'nrxq'), 'claw后台重连超时')
+check('取 banbenhao',
+  defectTicket.pickField(defectTicket.parseModelFields(modelPayload), 'banbenhao'), '4.3.8.2')
+const badModelPayload = { data: { prepareData: { formData: { model: '{oops' } } } }
+check('坏 JSON 返回 null', defectTicket.parseModelFields(badModelPayload), 'null')
+check('缺字段返回空串', defectTicket.pickField(null, 'nrxq'), '')
+
+section('git 地址解析：')
+const parsedGit = defectGit.parseGitUrl(
+  'http://192.168.5.15/jpaas/jagent/be/jagent-web/tree/release-4.3.5.17')
+check('仓库路径', parsedGit.projectPath, 'jpaas/jagent/be/jagent-web')
+check('分支', parsedGit.branch, 'release-4.3.5.17')
+check('clone 地址', parsedGit.cloneUrl, 'http://192.168.5.15/jpaas/jagent/be/jagent-web.git')
+check('提交地址前缀', parsedGit.commitUrlBase,
+  'http://192.168.5.15/jpaas/jagent/be/jagent-web/-/commit/')
+check('兼容 -/tree 写法', defectGit.parseGitUrl('http://h/g/p/-/tree/release-4.3.5.17').branch,
+  'release-4.3.5.17')
+check('分支名带斜杠', defectGit.parseGitUrl('http://h/g/p/tree/release/4.3').branch, 'release/4.3')
+check('末尾斜杠容错', defectGit.parseGitUrl('http://h/g/p/tree/main/').branch, 'main')
+
+section('提交人过滤与更新包拼装：')
+const sampleCommits = [
+  {
+    hash: 'a1', short: 'a1', author: 'xuning', email: 'xn1458@hanweb.com',
+    date: '2026-10-15', subject: 'fix:1', files: ['A.java'],
+  },
+  {
+    hash: 'b2', short: 'b2', author: '陶学东', email: 'txd341@hanweb.net',
+    date: '2026-10-14', subject: 'fix:2', files: ['B.java'],
+  },
+]
+check('按账号过滤', defectGit.filterCommits(sampleCommits, { gitUser: 'xuning' }).length, '1')
+check('按中文名过滤', defectGit.filterCommits(sampleCommits, { gitName: '陶学东' }).length, '1')
+check('不匹配为 0', defectGit.filterCommits(sampleCommits, { gitUser: 'nobody' }).length, '0')
+check('不配置则全通过', defectGit.filterCommits(sampleCommits, {}).length, '2')
+check('commitLimit 生效', defectGit.filterCommits(sampleCommits, { limit: 1 }).length, '1')
+
+const gitSection = defectGit.formatGitSection({
+  branch: 'b', commits: sampleCommits, commitUrlBase: 'http://h/r/-/commit/', limit: 1,
+})
+check('分段含分支', gitSection.includes('分支 b'), 'true')
+check('分段含提交地址', gitSection.includes('http://h/r/-/commit/a1'), 'true')
+check('limit 截断后面的提交', gitSection.includes('a1') && !gitSection.includes('b2'), 'true')
+
+section('git log 输出解析：')
+const logText = 'abc1234\u001fabc1234\u001fxuning\u001fxn1458@hanweb.com\u001f2026-10-15\u001ffix:x\n'
+  + '\nsrc/A.java\nsrc/B.java\n'
+  + 'def4567\u001fdef4567\u001fyuming\u001fym@hanweb.com\u001f2026-10-14\u001ffix:y\n'
+const parsedLog = defectGit.parseLogOutput(logText)
+check('解析提交数', parsedLog.length, '2')
+check('首条文件数', parsedLog[0].files.length, '2')
+check('首条 message', parsedLog[0].subject, 'fix:x')
+check('末条无文件', parsedLog[1].files.length, '0')
+
+section('AI 输出解析：')
+check('纯 JSON', defectAi.extractJson('{"analysis":"a","measures":"b"}').measures, 'b')
+check('带代码围栏', defectAi.extractJson('```json\n{"analysis":"a","measures":"b"}\n```').analysis, 'a')
+check('带前后缀', defectAi.extractJson('结果：{"analysis":"a2","measures":"b2"} 完毕').analysis, 'a2')
+check('非 JSON 返回 null', defectAi.extractJson('这不是 JSON'), 'null')
+check('编号挤在一行时断行', defectAi.formatNumbered('第一点。2. 第二点。3. 第三点'),
+  '第一点。\n2. 第二点。\n3. 第三点')
+check('版本号不被误断行', defectAi.formatNumbered('版本 4.3.8.2 已修复'), '版本 4.3.8.2 已修复')
+
+const aiMessages = defectAi.buildMessages({
+  title: '标题A', description: '描述B', branch: 'release-4.3.5.17', commits: sampleCommits,
+})
+check('消息条数', aiMessages.length, '2')
+check('system 要求输出 JSON', aiMessages[0].content.includes('JSON'), 'true')
+check('user 带上标题', aiMessages[1].content.includes('标题A'), 'true')
+check('user 带上提交', aiMessages[1].content.includes('fix:1'), 'true')
+check('描述按上限截断',
+  defectAi.buildMessages({ title: 'x', description: 'D'.repeat(5000), describeMaxChars: 100 })
+    .length, '2')
+
+// ============================================================================
+// 五、可选：真实接口（只判定，不建日程）
 // ============================================================================
 
 async function live() {

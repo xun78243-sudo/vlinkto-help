@@ -8,13 +8,15 @@ const path = require('path')
 const fs = require('fs')
 
 const {
-  app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell, Notification, dialog,
+  app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, shell, Notification, dialog, clipboard,
 } = require('electron')
 
 const store = require('./config')
 const { findToken } = require('./token')
 const chat = require('./exam/chat')
 const { AuthError } = require('./exam/api')
+const defect = require('./defect')
+const defectAi = require('./defect/ai')
 
 const APP_NAME = '微联叮小助手'
 const ASSETS = path.join(__dirname, '..', 'assets')
@@ -37,6 +39,11 @@ const state = {
     lastResult: null,
     nextRunAt: null,
     timer: null,
+  },
+  defect: {
+    running: false,
+    lastStage: null,
+    lastResult: null,
   },
 }
 
@@ -125,8 +132,42 @@ function appView() {
   }
 }
 
+function defectConfig() {
+  try {
+    return store.loadConfig(userDir).defect || store.DEFAULTS.defect
+  } catch (error) {
+    return store.DEFAULTS.defect
+  }
+}
+
+function defectView() {
+  const cfg = defectConfig()
+  return {
+    running: Boolean(state.defect.running),
+    gitUser: cfg.gitUser || '',
+    gitName: cfg.gitName || '',
+    defaultGitUrl: cfg.defaultGitUrl || '',
+    aiModel: cfg.aiModel || '',
+    aiBaseUrl: cfg.aiBaseUrl || '',
+    hasApiKey: Boolean(cfg.aiApiKey),
+    commitLimit: Number(cfg.commitLimit) || 20,
+    maxTickets: Number(cfg.maxTickets) || 100,
+  }
+}
+
+function sendDefectStage(stage, stageState, detail) {
+  state.defect.lastStage = { stage, state: stageState, at: Date.now() }
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('defect:stage', {
+      stage, state: stageState, detail: detail || null,
+    })
+  }
+}
+
 function snapshot() {
-  return { token: tokenView(), exam: examView(), app: appView() }
+  return {
+    token: tokenView(), exam: examView(), app: appView(), defect: defectView(),
+  }
 }
 
 function broadcast() {
@@ -441,6 +482,64 @@ function registerIpc() {
 
   ipcMain.handle('app:openLogs', async () => shell.openPath(store.logDir(userDir)))
   ipcMain.handle('app:openConfig', async () => shell.openPath(store.configPath(userDir)))
+  ipcMain.handle('app:copy', async (event, text) => {
+    clipboard.writeText(String(text == null ? '' : text))
+    return true
+  })
+
+  // ---------------- 缺陷单总结助手 ----------------
+
+  ipcMain.handle('defect:models', async () => defectAi.listModels(defectConfig()))
+
+  ipcMain.handle('defect:saveSettings', async (event, patch) => {
+    const cfg = store.loadConfig(userDir)
+    const target = cfg.defect
+    const source = patch && typeof patch === 'object' ? patch : {}
+    for (const key of ['gitUser', 'gitName', 'defaultGitUrl', 'aiModel', 'aiBaseUrl', 'aiApiKey']) {
+      if (typeof source[key] === 'string') target[key] = source[key].trim()
+    }
+    store.saveConfig(userDir, cfg)
+    log('info', `缺陷单设置已保存：git 账号=${target.gitUser || '（空）'}，模型=${target.aiModel || '（空）'}`)
+    return snapshot()
+  })
+
+  ipcMain.handle('defect:generate', async (event, payload) => {
+    const input = payload && typeof payload === 'object' ? payload : {}
+    const cfg = defectConfig()
+
+    let info = state.token
+    if (!info || !info.ok) info = findToken()
+    if (!info || !info.ok) {
+      throw new Error('未能获取 access-token，请先点「重新获取 Token」再试')
+    }
+
+    if (state.defect.running) throw new Error('正在生成中，请稍候')
+
+    state.defect.running = true
+    broadcast()
+    log('info', `缺陷单总结开始：${input.transactNo || '（无单号）'}`)
+    try {
+      const result = await defect.generate({
+        cfg,
+        token: info.token,
+        transactNo: String(input.transactNo || '').trim(),
+        gitUrl: String(input.gitUrl || '').trim(),
+        cacheRoot: path.join(userDir, 'git-cache'),
+        log,
+        onStage: (stage, stageState, detail) => sendDefectStage(stage, stageState, detail),
+      })
+      state.defect.lastResult = result
+      if (result.errors && result.errors.length) {
+        const first = result.errors[0]
+        log('warn', `缺陷单总结部分完成：${first.message}`)
+      }
+      return result
+    } finally {
+      state.defect.running = false
+      broadcast()
+    }
+  })
+
   ipcMain.handle('app:hide', async () => {
     if (mainWindow) mainWindow.hide()
   })
@@ -448,6 +547,49 @@ function registerIpc() {
     isQuitting = true
     app.quit()
   })
+}
+
+/**
+ * 缺陷单总结的界面端到端自检（--smoke-defect）：
+ * 切页签 → 填单号与 git 地址 → 点生成 → 等待完成 → 读回四个字段。
+ */
+async function runDefectSmoke() {
+  const cfg = defectConfig()
+  const ticketNo = process.argv.find((item) => /^JETABLE\d+$/i.test(item)) || 'JETABLE2026101400071'
+  const gitUrl = process.argv.find((item) => /^https?:\/\//i.test(item)) || cfg.defaultGitUrl
+
+  await mainWindow.webContents.executeJavaScript(`(() => {
+    document.querySelector('.tab[data-pane="defect"]').click()
+    document.getElementById('defect-ticket').value = ${JSON.stringify(ticketNo)}
+    document.getElementById('defect-giturl').value = ${JSON.stringify(gitUrl)}
+    document.getElementById('btn-defect-generate').click()
+    return true
+  })()`)
+
+  const deadline = Date.now() + 180000
+  let busy = true
+  while (busy && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 3000))
+    busy = await mainWindow.webContents.executeJavaScript(
+      "Boolean(document.getElementById('btn-defect-generate').disabled)")
+  }
+
+  const result = await mainWindow.webContents.executeJavaScript(`(() => ({
+    paneVisible: document.getElementById('pane-defect').hidden === false,
+    busy: Boolean(document.getElementById('btn-defect-generate').disabled),
+    title: document.getElementById('out-title').value,
+    description: (document.getElementById('out-description').value || '').slice(0, 60),
+    analysisLength: (document.getElementById('out-analysis').value || '').length,
+    measuresLength: (document.getElementById('out-measures').value || '').length,
+    copyButtons: document.querySelectorAll('#defect-result .copy').length,
+    errorShown: !document.getElementById('defect-error').hidden,
+    errorText: document.getElementById('defect-error').innerText.slice(0, 200),
+    meta: document.getElementById('defect-meta').textContent,
+    stages: Array.from(document.querySelectorAll('.stage')).map((node) => node.className),
+  }))()`)
+  result.ticketNo = ticketNo
+  result.gitUrl = gitUrl
+  return result
 }
 
 // ============================================================================
@@ -485,6 +627,7 @@ if (!gotLock) {
     // 冒烟自检：渲染完成后把关键 DOM 打出来，然后退出（用于自动化验证，不影响日常使用）
     if (process.argv.includes('--smoke')) {
       const withRun = process.argv.includes('--smoke-run')
+      const withDefect = process.argv.includes('--smoke-defect')
       const probe = `(() => ({
         title: document.title,
         version: (document.getElementById('version') || {}).textContent,
@@ -494,6 +637,10 @@ if (!gotLock) {
         switchChecked: Boolean(document.getElementById('exam-switch') && document.getElementById('exam-switch').checked),
         lastResult: (document.getElementById('exam-result') || {}).textContent,
         nextRun: (document.getElementById('exam-next') || {}).textContent,
+        tabs: document.querySelectorAll('.tab').length,
+        defectPaneHidden: Boolean(document.getElementById('pane-defect') && document.getElementById('pane-defect').hidden),
+        defectInputs: document.querySelectorAll('#pane-defect input').length,
+        defectCopyButtons: document.querySelectorAll('#defect-result .copy').length,
       }))()`
 
       mainWindow.webContents.once('did-finish-load', () => {
@@ -502,6 +649,10 @@ if (!gotLock) {
             const info = await mainWindow.webContents.executeJavaScript(probe)
             info.trayAlive = Boolean(tray && !tray.isDestroyed())
             console.log(`SMOKE ${JSON.stringify(info)}`)
+
+            if (withDefect) {
+              console.log(`SMOKE_DEFECT ${JSON.stringify(await runDefectSmoke())}`)
+            }
 
             if (withRun) {
               await mainWindow.webContents.executeJavaScript(
