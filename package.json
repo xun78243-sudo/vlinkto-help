@@ -1,7 +1,7 @@
 {
   "name": "vlinkto-exam-assistant",
   "productName": "微联叮小助手",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "微联叮桌面小助手：自动获取 token，按聊天记录自动创建考试日程，并按工单与 git 提交生成缺陷单总结、自动创建信息数据",
   "main": "src/main.js",
   "author": "hanweb",
@@ -18,7 +18,8 @@
     "smoke": "electron . --smoke --smoke-run",
     "smoke:defect": "electron . --smoke --smoke-defect",
     "dist": "electron-builder --win",
-    "dist:local": "electron-builder --win --config.electronDist=node_modules/electron/dist"
+    "dist:local": "electron-builder --win --config.electronDist=node_modules/electron/dist",
+    "check:reminder": "node scripts/check-reminder.js"
   },
   "devDependencies": {
     "electron": "^44.9.1",

@@ -101,6 +101,7 @@ function render(snapshotData) {
   snapshot = snapshotData
   renderToken(snapshotData.token)
   renderExam(snapshotData.exam)
+  if (snapshotData.reminder) renderReminder(snapshotData.reminder)
 
   if (snapshotData.app) {
     $('version').textContent = `v${snapshotData.app.version}`
@@ -111,6 +112,80 @@ function render(snapshotData) {
   }
 
   // 缺陷单表单不预填任何默认值：工单号与 git 地址每次都由使用者输入
+}
+
+// ---------------------------------------------------------------- 到期提醒
+
+function fmtClock(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+}
+
+function reminderPlanOf(item) {
+  if (item.status === 'sent') return { text: `已提醒 ${fmtClock(item.sentAt)}`, cls: 'ok' }
+  if (item.status === 'waiting') return { text: `待提醒 ${fmtClock(item.notifyAt)}`, cls: 'wait' }
+  if (item.isToday) return { text: '今天到期（时间未识别）', cls: 'warn' }
+  return { text: '非今日', cls: 'muted' }
+}
+
+function renderReminder(view) {
+  if (!view) return
+  const toggle = $('reminder-switch')
+  toggle.checked = Boolean(view.enabled)
+  $('reminder-hint').textContent = `每 ${view.intervalMinutes || 30} 分钟查一次待办；今天 `
+    + `${view.eveningText || '18:00'} 前到期的提前 ${view.advanceMinutes || 30} 分钟提醒，`
+    + `${view.eveningText || '18:00'} 后到期的统一 ${view.eveningNotifyText || '17:30'} 提醒`
+
+  const stateEl = $('reminder-state')
+  stateEl.textContent = view.running
+    ? '检查中…'
+    : (view.enabled ? '自动检查已开启' : '已关闭')
+  stateEl.className = view.running ? '' : (view.enabled ? 'ok' : '')
+
+  $('reminder-last').textContent = fmtDate(view.lastRunAt)
+  $('reminder-next').textContent = view.enabled && view.nextRunAt ? fmtDate(view.nextRunAt) : '—'
+  $('reminder-today').textContent = view.refreshedAt
+    ? `${view.today} 条 / 待办 ${view.total} 条`
+    : '—'
+
+  const meta = $('reminder-meta')
+  if (view.lastError) {
+    meta.textContent = view.lastError
+    meta.className = 'reminder-meta error'
+    meta.title = view.lastError
+  } else if (view.refreshedAt) {
+    meta.textContent = `待提醒 ${view.waiting} 条 · 已提醒 ${view.sent} 条`
+    meta.className = 'reminder-meta'
+    meta.title = ''
+  } else {
+    meta.textContent = '—'
+    meta.className = 'reminder-meta'
+    meta.title = ''
+  }
+
+  const list = $('reminder-list')
+  const rows = $('reminder-rows')
+  const empty = $('reminder-empty')
+  rows.textContent = ''
+  list.hidden = !view.items || view.items.length === 0
+  empty.hidden = Boolean(view.items && view.items.length)
+
+  for (const item of view.items || []) {
+    const row = el('div', 'reminder-row')
+    const name = el('span', 'reminder-col-name')
+    name.appendChild(el('span', 'reminder-name', item.title || item.ticketNo || '（无标题）'))
+    if (item.ticketNo) name.appendChild(el('span', 'reminder-ticket', item.ticketNo))
+    row.appendChild(name)
+    row.appendChild(el('span', 'reminder-col-time', item.deadlineText || '—'))
+    const plan = reminderPlanOf(item)
+    row.appendChild(el('span', `reminder-col-plan ${plan.cls}`, plan.text))
+    rows.appendChild(row)
+  }
+
+  $('btn-reminder-run').disabled = Boolean(view.running)
+  toggle.disabled = false
 }
 
 function appendLog(entry) {
@@ -166,6 +241,29 @@ function bind() {
     render(await api.runNow())
   }))
 
+  $('reminder-switch').addEventListener('change', (event) => {
+    const enabled = event.target.checked
+    $('reminder-switch').disabled = true
+    api.toggleReminder(enabled)
+      .then(render)
+      .catch(() => { $('reminder-switch').disabled = false })
+  })
+
+  $('btn-reminder-run').addEventListener('click', async () => {
+    $('btn-reminder-run').disabled = true
+    $('btn-reminder-run').textContent = '检查中…'
+    try {
+      render(await api.runReminder())
+    } finally {
+      $('btn-reminder-run').textContent = '立即检查'
+      if (snapshot && snapshot.reminder) $('btn-reminder-run').disabled = Boolean(snapshot.reminder.running)
+    }
+  })
+
+  $('btn-reminder-test').addEventListener('click', () => {
+    api.testReminderNotify().then(render).catch(() => {})
+  })
+
   $('dry-run').addEventListener('change', (event) => {
     api.setDryRun(event.target.checked).then(render)
   })
@@ -188,6 +286,7 @@ function switchPane(name) {
   }
   $('pane-exam').hidden = name !== 'exam'
   $('pane-defect').hidden = name !== 'defect'
+  $('pane-reminder').hidden = name !== 'reminder'
   $('pane-log').hidden = name !== 'log'
 }
 

@@ -91,6 +91,26 @@ const DEFAULTS = {
     infoPublish: true,
     infoTimeoutMs: 30000,
   },
+  reminder: {
+    // 工单到期提醒：每 30 分钟查一次待办列表
+    enabled: true,
+    intervalMinutes: 30,
+    apiHost: 'https://work.hanweb.com',
+    listPath: '/api-gateway/jpaas-jtodo-server/manager/new-pending/list',
+    // 固定入参（与抓到的请求一致），分页参数放 query
+    sortRole: 1,
+    applyState: 0,
+    plan: 0,
+    typeId: 'VDq5V3vBJSj1NHy14tUDi',
+    pageSize: 10,
+    maxPages: 20,
+    // 截止在 18:00 之前的，提前这么多分钟提醒
+    advanceMinutes: 30,
+    // 18:00 及以后到期的，统一在这个时刻提醒
+    eveningHour: 18,
+    eveningNotifyTime: '17:30',
+    notifyBeforeDeadlineOnly: true,
+  },
   app: {
     closeToTray: true,
     autoLaunch: false,

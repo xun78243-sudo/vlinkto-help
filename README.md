@@ -1,11 +1,12 @@
 # 微联叮小助手
 
-Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，提供两个能力：
+Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，提供三个能力：
 
 - **考试日程小助理** —— 按聊天记录自动创建考试日程（开启后立即执行一次，之后每 3 小时一次）；
 - **缺陷单总结助手** —— 输入工单编号 + git 分支地址，自动生成工单里要填的
   标题 / 问题描述 / 分析过程 / 处理措施（含更新包提交路径），
-  自动建一条 CMS「信息数据」并把可复制、可访问的信息地址显示出来。
+  自动建一条 CMS「信息数据」并把可复制、可访问的信息地址显示出来；
+- **工单到期提醒助手** —— 每 30 分钟查一次待办，今天到期的工单在截止前（或 17:30）弹 Windows 通知。
 
 应用常驻系统托盘，关闭窗口只是隐藏。
 
@@ -19,13 +20,13 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 
 | 文件 | 大小 | 适用 |
 | --- | --- | --- |
-| [vlinkto-assistant-setup-1.3.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-setup-1.3.0.exe) | 106 MB | 安装版：按用户安装、免管理员，自动建桌面与开始菜单快捷方式 |
-| [vlinkto-assistant-portable-1.3.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-portable-1.3.0.exe) | 106 MB | 便携版：单文件免安装，双击即用 |
+| [vlinkto-assistant-setup-1.4.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-setup-1.4.0.exe) | 106 MB | 安装版：按用户安装、免管理员，自动建桌面与开始菜单快捷方式 |
+| [vlinkto-assistant-portable-1.4.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-portable-1.4.0.exe) | 106 MB | 便携版：单文件免安装，双击即用 |
 
-使用前提：微联叮客户端已登录、机器能访问 `work.hanweb.com`；
+使用前提：微联叮客户端已登录、机器能访问 `work.hanweb.com`（到期提醒也走这个网关）；
 缺陷单总结还要求能访问内网 `192.168.10.51`（AI 服务）和 `192.168.5.15`（GitLab）。
 
-> 上面是 1.3.0（新增「创建信息数据 + 取回信息地址」）的链接。若暂时 404，说明该版本还没发到 Release，
+> 上面是 1.4.0（新增「工单到期提醒」）的链接。若暂时 404，说明该版本还没发到 Release，
 > 可直接用本地 `dist\` 下的安装包，或自己 `npm run dist` 打一个。
 
 ---
@@ -43,7 +44,8 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 | 幂等 | 每条消息按 `msgId` 记账（`state.json`），同一条消息不会重复建日程；首次启动会自动迁移旧 Python 版的记账文件 |
 | 缺陷单总结 | 工单编号 + git 分支地址 → 标题 / 问题描述 / 分析过程 / 处理措施（内部生成，界面不再展示） |
 | 确认提交 | 生成完成后自动调用 `info/add` 建一条「信息数据」，再查 `info/list` 取 `fullUrl`，界面上显示「信息地址」并可一键复制 |
-| 界面 | 左侧菜单切换「考试日程 / 缺陷单总结 / 运行日志」，右侧只显示当前菜单的内容；缺陷单表单纵向排列、不预填任何默认值 |
+| 工单到期提醒 | 每 30 分钟查一次待办；今天 18:00 前到期的提前 30 分钟弹通知，18:00 后到期的统一 17:30 弹一条；界面上能看到今天到期的清单 |
+| 界面 | 左侧菜单切换「考试日程 / 缺陷单总结 / 到期提醒 / 运行日志」，右侧只显示当前菜单的内容；缺陷单表单纵向排列、不预填任何默认值 |
 
 检测逻辑（与 Python 版一致）：
 
@@ -153,6 +155,44 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 
 ---
 
+## 工单到期提醒助手
+
+### 规则
+
+| 截止时间 | 什么时候弹通知 |
+| --- | --- |
+| 今天 18:00 之前 | 截止前 30 分钟，一张单一条通知 |
+| 今天 18:00 及以后 | 今天 17:30 统一提醒，这类单合并成一条 |
+| 不是今天 | 不提醒（列表里标「非今日」） |
+| 已经过了截止时间 | 不补发，避免一开机弹一堆旧单 |
+
+- 每 30 分钟查一次（`reminder.intervalMinutes`），界面右上角开关、托盘右键也都能开关；
+- 通知内容是「办件名 + 截止时间」；界面上的 **测试通知** 可以先确认这台机器的 Windows 通知没被系统屏蔽；
+- 同一张单、同一天、同一个提醒窗口只弹一次（记在 `state.json` 的 `reminders` 里，7 天后自动清）；
+- 界面列表显示全部待办 + 截止时间 + 「待提醒 hh:mm」/「已提醒 hh:mm」。
+
+### 接口
+
+`POST /api-gateway/jpaas-jtodo-server/manager/new-pending/list`，入参固定：
+`sortRole=1`、`applyState=0`、`plan=0`、`typeId=VDq5V3vBJSj1NHy14tUDi`，分页 `pageNo` / `pageSize=10`。
+
+- 分页参数**必须放 query**（放 body 服务端会忽略，永远返回第一页）；
+- 按 `data.totalPage` 翻页，最多 `maxPages=20` 页，避免待办多的时候漏单；
+- 截止时间优先取 `planEndTime`（毫秒时间戳，实测等于当天 23:59:59），
+  取不到才解析 `deadlineTime`（`10月26日 (周一) 23:59 截止`——没有年份，按当前年补，跨年顺延一年）。
+
+### 设置项（`config.json` 的 `reminder` 段）
+
+| 配置 | 默认 | 说明 |
+| --- | --- | --- |
+| `enabled` | `true` | 启动就开；关掉后不再定时检查（界面开关会同步写回） |
+| `intervalMinutes` | `30` | 检查间隔（分钟） |
+| `advanceMinutes` | `30` | 18:00 前的单子提前多少分钟提醒 |
+| `eveningHour` | `18` | 几点算「晚上到期」 |
+| `eveningNotifyTime` | `17:30` | 晚上到期的统一提醒时刻 |
+| `pageSize` / `maxPages` | `10` / `20` | 翻页规模 |
+| `typeId` / `sortRole` / `applyState` / `plan` | 见上 | 待办列表固定入参 |
+
 ## 运行
 
 ### 方式一：装成正式应用（推荐给使用者）
@@ -253,6 +293,8 @@ npm run check:live     # 额外跑一次真实聊天接口（dry-run，不建日
 npm run check:defect   # 缺陷单联网自检：查工单 + 拉 git 提交 + 真实调用一次模型（不建信息数据）
 npm run check:defect:submit  # 同上，并真实创建一条信息数据、打印 iid 与信息地址
 $env:DEFECT_URL_IID='<iid>'; npm run check:defect   # 只按 iid 查信息地址，不新建记录
+npm run check:reminder  # 到期提醒联网自检：拉一次待办，打印解析结果与这一轮该弹的通知
+npm run check:reminder -- --at="17:31"   # 假装现在是今天 17:31，验证 17:30 那批提醒
 npm run smoke          # Electron 冒烟：左侧菜单、开关、定时器、刷新按钮、关窗隐藏到托盘
 npm run smoke:defect   # Electron 端到端：点「生成总结」，验证第 ④ 步与「信息地址」块；提交走 dry-run
 ```
@@ -333,6 +375,8 @@ src/
     ai.js              内网 OpenAI 兼容接口调用、提示词、JSON 容错解析
     info.js            确认提交：信息数据入参模板 / 富文本转换 / 调 info/add、info/list 取 fullUrl
     index.js           四步编排 + 四段内容组装
+  reminder/
+    index.js           到期提醒：截止时间解析、18:00 分界与 17:30 统一提醒判定、待办翻页
   renderer/            界面（index.html / styles.css / defect.css / renderer.js）
 assets/
   icon.png / icon.ico  应用图标（ico 为多尺寸，打包用）
@@ -340,6 +384,7 @@ assets/
 scripts/
   check-core.js        核心自检（含缺陷单纯函数用例）
   check-defect.js      缺陷单联网自检（查工单 / 拉提交 / 调模型）
+  check-reminder.js    到期提醒联网自检（可 --at 模拟时间）
   make-icons.js        生成 PNG/ICO 图标（无第三方依赖）
 dist/                  打包产物（安装包、便携版、win-unpacked）
 legacy/                旧 Python 实现（等价参考，未纳入仓库）

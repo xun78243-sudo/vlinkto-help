@@ -18,6 +18,7 @@ const { AuthError } = require('./exam/api')
 const defect = require('./defect')
 const defectAi = require('./defect/ai')
 const defectInfo = require('./defect/info')
+const reminder = require('./reminder')
 
 const APP_NAME = '微联叮小助手'
 const ASSETS = path.join(__dirname, '..', 'assets')
@@ -48,6 +49,17 @@ const state = {
     lastResult: null,
     lastMeta: null,
     lastFingerprint: '',
+  },
+  reminder: {
+    enabled: false,
+    running: false,
+    timer: null,
+    lastRunAt: null,
+    nextRunAt: null,
+    lastResult: null,
+    lastError: '',
+    items: [],
+    refreshedAt: null,
   },
 }
 
@@ -162,6 +174,89 @@ function defectView() {
   }
 }
 
+function reminderConfig() {
+  try {
+    return store.loadConfig(userDir).reminder || store.DEFAULTS.reminder
+  } catch (error) {
+    return store.DEFAULTS.reminder
+  }
+}
+
+function reminderIntervalMs() {
+  const minutes = Number(reminderConfig().intervalMinutes) || 30
+  return Math.max(1, minutes) * 60000
+}
+
+/** 已经发过的提醒（存在 state.json 的 reminders 里），顺手清掉 7 天前的。 */
+function loadSentMap() {
+  let saved = {}
+  try {
+    saved = store.loadState(userDir)
+  } catch (error) {
+    saved = {}
+  }
+  const source = saved && saved.reminders && typeof saved.reminders === 'object' ? saved.reminders : {}
+  const cutoff = Date.now() - 7 * 24 * 3600 * 1000
+  const fresh = {}
+  for (const [key, at] of Object.entries(source)) {
+    if (Number(at) >= cutoff) fresh[key] = Number(at)
+  }
+  return fresh
+}
+
+function saveSentMap(sent) {
+  try {
+    const saved = store.loadState(userDir)
+    saved.reminders = sent && typeof sent === 'object' ? sent : {}
+    store.saveState(userDir, saved)
+  } catch (error) {
+    log('warn', `保存提醒记录失败：${error.message}`)
+  }
+}
+
+function reminderView() {
+  const cfg = reminderConfig()
+  const sent = loadSentMap()
+  const items = state.reminder.items.map((item) => {
+    const sentAt = item.key && sent[item.key] ? sent[item.key] : 0
+    let status = 'other'
+    if (sentAt) status = 'sent'
+    else if (item.isToday && item.window) status = 'waiting'
+    return {
+      ticketNo: item.ticketNo,
+      title: item.title,
+      deadlineText: item.deadlineText,
+      isToday: Boolean(item.isToday),
+      window: item.window || '',
+      notifyAt: item.notifyAt || 0,
+      deadlineAt: item.deadlineAt || 0,
+      sentAt,
+      status,
+      url: item.url || '',
+    }
+  })
+
+  return {
+    enabled: Boolean(state.reminder.enabled),
+    running: Boolean(state.reminder.running),
+    lastRunAt: state.reminder.lastRunAt,
+    nextRunAt: state.reminder.nextRunAt,
+    refreshedAt: state.reminder.refreshedAt,
+    lastError: state.reminder.lastError || '',
+    lastResult: state.reminder.lastResult,
+    intervalMinutes: Number(cfg.intervalMinutes) || 30,
+    advanceMinutes: Number(cfg.advanceMinutes) || 30,
+    eveningText: `${String(Number(cfg.eveningHour) || 18).padStart(2, '0')}:00`,
+    eveningNotifyText: String(cfg.eveningNotifyTime || '17:30'),
+    typeId: String(cfg.typeId || ''),
+    total: items.length,
+    today: items.filter((item) => item.isToday).length,
+    waiting: items.filter((item) => item.status === 'waiting').length,
+    sent: items.filter((item) => item.status === 'sent').length,
+    items,
+  }
+}
+
 function sendDefectStage(stage, stageState, detail) {
   state.defect.lastStage = { stage, state: stageState, at: Date.now() }
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -174,6 +269,7 @@ function sendDefectStage(stage, stageState, detail) {
 function snapshot() {
   return {
     token: tokenView(), exam: examView(), app: appView(), defect: defectView(),
+    reminder: reminderView(),
   }
 }
 
@@ -316,6 +412,146 @@ function notify(title, body) {
 }
 
 // ============================================================================
+// 工单到期提醒
+// ============================================================================
+
+/** token 还能用就复用，只剩不到 2 小时才重新取，免得每 30 分钟刷一次日志。 */
+async function ensureToken() {
+  if (state.token && state.token.ok && state.token.expiresAt
+    && state.token.expiresAt.getTime() - Date.now() > 2 * 3600 * 1000) {
+    return state.token
+  }
+  return refreshToken('run')
+}
+
+async function runReminder(trigger = 'manual', options = {}) {
+  if (state.reminder.running) {
+    log('warn', '上一轮到期检查还在执行，本次跳过')
+    return { skipped: true }
+  }
+
+  const notifyEnabled = options.notify !== false
+  const label = trigger === 'auto' ? '定时' : trigger === 'enable' ? '开启开关' : '手动'
+  state.reminder.running = true
+  broadcast()
+  log('info', `—— 检查工单到期（${label}）——`)
+
+  const startedAt = Date.now()
+  let result
+  try {
+    const token = await ensureToken()
+    if (!token || !token.ok) {
+      throw new Error(token && token.error ? token.error : '没有可用的 access-token')
+    }
+
+    const cfg = reminderConfig()
+    const now = new Date()
+    const fetched = await reminder.fetchPending(cfg, token.token, { log })
+    const items = fetched.items.map((item) => reminder.describeItem(item, now, cfg))
+    state.reminder.items = items
+    state.reminder.refreshedAt = Date.now()
+    state.reminder.lastError = ''
+
+    const sent = loadSentMap()
+    const due = reminder.dueNotifications(fetched.items, now, cfg, sent)
+    const messages = reminder.buildNotifications(due)
+
+    let notified = 0
+    for (const message of messages) {
+      const flat = String(message.body || '').replace(/\n/g, ' ／ ')
+      if (notifyEnabled) {
+        notify(message.title, message.body)
+        notified += 1
+        log('info', `已发送到期提醒：${message.title}（${flat}）`)
+      } else {
+        log('info', `冒烟模式只记日志，不弹窗：${message.title}（${flat}）`)
+      }
+    }
+    if (messages.length) {
+      const at = Date.now()
+      for (const key of messages.flatMap((item) => item.keys)) sent[key] = at
+      saveSentMap(sent)
+    }
+
+    const today = items.filter((item) => item.isToday)
+    const evening = today.filter((item) => item.window === 'evening')
+    log('info', `到期汇总：待办 ${items.length} 条 / 今天到期 ${today.length} 条`
+      + `（18:00 前 ${today.length - evening.length} 条、18:00 后 ${evening.length} 条）`
+      + ` / 本轮提醒 ${messages.length} 条 / 翻页 ${fetched.pages} 次`)
+
+    result = {
+      ok: true,
+      trigger,
+      total: items.length,
+      today: today.length,
+      due: messages.length,
+      notified,
+      pages: fetched.pages,
+      durationMs: Date.now() - startedAt,
+    }
+  } catch (error) {
+    const message = error instanceof AuthError
+      ? 'access-token 已失效，请点击「重新获取 Token」'
+      : error.message
+    log('error', `到期检查失败：${message}`)
+    state.reminder.lastError = message
+    result = { ok: false, error: message, trigger, durationMs: Date.now() - startedAt }
+  } finally {
+    state.reminder.running = false
+    state.reminder.lastRunAt = Date.now()
+    state.reminder.lastResult = result
+    if (state.reminder.enabled) state.reminder.nextRunAt = Date.now() + reminderIntervalMs()
+    broadcast()
+  }
+
+  return result
+}
+
+function startReminder(options = {}) {
+  if (state.reminder.timer) {
+    clearInterval(state.reminder.timer)
+    state.reminder.timer = null
+  }
+  state.reminder.enabled = true
+  const ms = reminderIntervalMs()
+  const cfg = reminderConfig()
+  state.reminder.timer = setInterval(() => {
+    runReminder('auto')
+  }, ms)
+  state.reminder.nextRunAt = Date.now() + ms
+  persistReminderSetting(true)
+  log('info', `工单到期提醒已开启：每 ${Math.round(ms / 60000)} 分钟检查一次`
+    + `；今天 ${Number(cfg.eveningHour) || 18}:00 前到期的提前 `
+    + `${Number(cfg.advanceMinutes) || 30} 分钟提醒，${Number(cfg.eveningHour) || 18}:00 后到期的统一 `
+    + `${cfg.eveningNotifyTime || '17:30'} 提醒`)
+  if (options.runNow !== false) runReminder('enable', options)
+  broadcast()
+}
+
+function stopReminder(options = {}) {
+  const wasEnabled = state.reminder.enabled
+  if (state.reminder.timer) {
+    clearInterval(state.reminder.timer)
+    state.reminder.timer = null
+  }
+  state.reminder.enabled = false
+  state.reminder.nextRunAt = null
+  if (wasEnabled) persistReminderSetting(false)
+  if (!options.silent) log('info', '工单到期提醒已关闭')
+  if (!options.silent) broadcast()
+}
+
+function persistReminderSetting(enabled) {
+  try {
+    const cfg = store.loadConfig(userDir)
+    cfg.reminder.enabled = enabled
+    store.saveConfig(userDir, cfg)
+  } catch (error) {
+    log('warn', `保存到期提醒开关失败：${error.message}`)
+  }
+}
+
+// ============================================================================
 // 窗口与托盘
 // ============================================================================
 
@@ -400,6 +636,22 @@ function updateTray() {
       },
       { label: '立即执行一次', click: () => runExam('manual'), enabled: !state.exam.running },
       { type: 'separator' },
+      {
+        label: `工单到期提醒（每 ${Math.round(reminderIntervalMs() / 60000)} 分钟）`,
+        type: 'checkbox',
+        checked: Boolean(state.reminder.enabled),
+        click: (item) => {
+          if (item.checked) startReminder()
+          else stopReminder()
+          if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('state:update', snapshot())
+        },
+      },
+      {
+        label: '立即检查到期工单',
+        click: () => runReminder('manual'),
+        enabled: !state.reminder.running,
+      },
+      { type: 'separator' },
       { label: '重新获取 Token', click: () => refreshToken('manual') },
       { label: '打开日志目录', click: () => shell.openPath(store.logDir(userDir)) },
       { label: '打开配置文件', click: () => shell.openPath(store.configPath(userDir)) },
@@ -469,6 +721,27 @@ function registerIpc() {
 
   ipcMain.handle('exam:runNow', async () => {
     await runExam('manual')
+    return snapshot()
+  })
+
+  ipcMain.handle('reminder:toggle', async (event, enabled) => {
+    if (enabled) startReminder()
+    else stopReminder()
+    return snapshot()
+  })
+
+  ipcMain.handle('reminder:runNow', async () => {
+    await runReminder('manual')
+    return snapshot()
+  })
+
+  ipcMain.handle('reminder:test', async () => {
+    const now = new Date()
+    notify('工单还有不到 30 分钟到期：示例工单（测试通知，可忽略）',
+      '办件名：示例工单_演示用（测试）\n'
+      + `截止时间：${now.getMonth() + 1}月${now.getDate()}日 `
+      + `${pad2(now.getHours())}:${pad2(now.getMinutes())} 截止`)
+    log('info', '已发送一条到期提醒测试通知')
     return snapshot()
   })
 
@@ -706,20 +979,87 @@ async function runDefectSmoke() {
     }
   })()`)
 
-  // 顺带验证左侧三个菜单项与「运行日志」独立面板
+  // 顺带验证左侧四个菜单项与各自独立面板
   result.panes = await mainWindow.webContents.executeJavaScript(`(() => {
     const click = (name) => document.querySelector('.menu-item[data-pane="' + name + '"]').click()
     const hidden = (name) => document.getElementById('pane-' + name).hidden
+    const only = (name) => !hidden(name) && ['exam', 'defect', 'reminder', 'log']
+      .filter((other) => other !== name).every(hidden)
     click('log')
-    const logOnly = !hidden('log') && hidden('exam') && hidden('defect')
     const logLines = document.querySelectorAll('#log-view .log-line').length
     const logViewHeight = Math.round(
       document.querySelector('#pane-log .log-view').getBoundingClientRect().height)
+    const logOnly = only('log')
     click('exam')
-    const examOnly = !hidden('exam') && hidden('log') && hidden('defect')
+    const examOnly = only('exam')
     click('defect')
-    const defectOnly = !hidden('defect') && hidden('exam') && hidden('log')
-    return { logOnly, examOnly, defectOnly, logLines, logViewHeight }
+    const defectOnly = only('defect')
+    click('reminder')
+    const reminderOnly = only('reminder')
+    return { logOnly, examOnly, defectOnly, reminderOnly, logLines, logViewHeight }
+  })()`)
+
+  // 到期提醒：真查一次待办（只写日志不弹窗），再看界面渲染
+  result.reminderRun = await runReminder('manual', { notify: false })
+  result.reminderDom = await mainWindow.webContents.executeJavaScript(`(() => {
+    document.querySelector('.menu-item[data-pane="reminder"]').click()
+    const rows = Array.from(document.querySelectorAll('#reminder-rows .reminder-row'))
+    const first = rows[0] || null
+    const nameCell = first ? first.querySelector('.reminder-col-name') : null
+    return {
+      paneShown: !document.getElementById('pane-reminder').hidden,
+      switchOn: document.getElementById('reminder-switch').checked,
+      rows: rows.length,
+      listShown: !document.getElementById('reminder-list').hidden,
+      emptyShown: !document.getElementById('reminder-empty').hidden,
+      stateText: document.getElementById('reminder-state').textContent,
+      todayText: document.getElementById('reminder-today').textContent,
+      metaText: document.getElementById('reminder-meta').textContent,
+      hintText: document.getElementById('reminder-hint').textContent,
+      firstRow: first ? first.textContent.replace(/\\s+/g, ' ').trim() : '',
+      nameWidth: nameCell ? Math.round(nameCell.getBoundingClientRect().width) : 0,
+      overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+    }
+  })()`)
+  // 用两条假数据把提醒列表渲染出来，验证布局（不写状态、不发通知）
+  result.reminderDemo = await mainWindow.webContents.executeJavaScript(`(() => {
+    const now = Date.now()
+    renderReminder({
+      enabled: true, running: false, lastRunAt: now, nextRunAt: now + 1800000,
+      refreshedAt: now, lastError: '', intervalMinutes: 30, advanceMinutes: 30,
+      eveningText: '18:00', eveningNotifyText: '17:30',
+      total: 2, today: 2, waiting: 1, sent: 1,
+      items: [
+        {
+          ticketNo: 'JETABLE2026102100001',
+          title: '示例：今天 17:00 截止的工单（标题很长很长用来试省略号）',
+          deadlineText: '10月21日 (周三) 17:00 截止',
+          isToday: true, window: 'soon', notifyAt: now + 600000, sentAt: 0, status: 'waiting',
+        },
+        {
+          ticketNo: 'JETABLE2026102100002',
+          title: '示例：今晚 23:59 截止的工单',
+          deadlineText: '10月21日 (周三) 23:59 截止',
+          isToday: true, window: 'evening', notifyAt: now, sentAt: now, status: 'sent',
+        },
+      ],
+    })
+    const rows = Array.from(document.querySelectorAll('#reminder-rows .reminder-row'))
+    const first = rows[0]
+    const nameCell = first.querySelector('.reminder-col-name')
+    const nameEl = first.querySelector('.reminder-name')
+    return {
+      rows: rows.length,
+      listShown: !document.getElementById('reminder-list').hidden,
+      emptyShown: !document.getElementById('reminder-empty').hidden,
+      metaText: document.getElementById('reminder-meta').textContent,
+      todayText: document.getElementById('reminder-today').textContent,
+      firstRow: first.textContent.replace(/\\s+/g, ' ').trim(),
+      nameWidth: Math.round(nameCell.getBoundingClientRect().width),
+      nameEllipsis: nameEl.scrollWidth > nameEl.clientWidth + 1,
+      rowWidth: Math.round(first.getBoundingClientRect().width),
+      overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+    }
   })()`)
   return result
 }
@@ -851,6 +1191,13 @@ if (!gotLock) {
     } else {
       broadcast()
     }
+
+    // 工单到期提醒：默认开（config.json 里 reminder.enabled），启动就先查一轮
+    if (!SMOKE_MODE && cfg.reminder && cfg.reminder.enabled !== false) {
+      startReminder()
+    } else if (SMOKE_MODE) {
+      log('info', '冒烟模式：不启动工单到期提醒定时器')
+    }
   })
 
   app.on('window-all-closed', () => {
@@ -860,6 +1207,7 @@ if (!gotLock) {
   app.on('before-quit', () => {
     isQuitting = true
     if (state.exam.timer) clearInterval(state.exam.timer)
+    if (state.reminder.timer) clearInterval(state.reminder.timer)
   })
 
   app.on('activate', () => showWindow())

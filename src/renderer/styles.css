@@ -383,3 +383,91 @@ body {
   background: #94a3b8;
   background-clip: content-box;
 }
+
+/* ---------------- 工单到期提醒 ---------------- */
+
+.reminder-meta {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.reminder-meta.error {
+  color: var(--danger);
+}
+
+.reminder-list {
+  margin-top: 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--card);
+}
+
+.reminder-list[hidden] {
+  display: none;
+}
+
+.reminder-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 186px 118px;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+}
+
+.reminder-row:first-child {
+  border-top: 0;
+}
+
+.reminder-row-head {
+  background: #f8fafc;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.reminder-col-name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.reminder-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.reminder-ticket {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.reminder-col-time {
+  font-size: 12px;
+  color: var(--text);
+}
+
+.reminder-col-plan {
+  font-size: 12px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.reminder-col-plan.ok { color: var(--ok); }
+.reminder-col-plan.wait { color: var(--accent); }
+.reminder-col-plan.warn { color: var(--warn); }
+.reminder-col-plan.muted { color: var(--muted); }
+
+.reminder-empty {
+  margin-top: 12px;
+}
+
+.reminder-empty[hidden] {
+  display: none;
+}
+

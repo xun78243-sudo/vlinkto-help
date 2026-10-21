@@ -329,7 +329,108 @@ check('没有 fullUrl 时退回 url 字段',
   defectInfo.parseInfoList({ data: { list: [{ iid: 'i1', url: '/u/1' }] } }, 'i1').url, '/u/1')
 
 // ============================================================================
-// 五、可选：真实接口（只判定，不建日程）
+// 五、工单到期提醒：纯函数
+// ============================================================================
+
+const reminder = require(path.join(__dirname, '..', 'src', 'reminder', 'index.js'))
+
+function clock(date) {
+  if (!date) return '空'
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} `
+    + `${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+const day = new Date(2026, 9, 21, 14, 0, 0) // 2026-10-21 14:00（周三）
+const at = (h, m, s = 0) => new Date(2026, 9, 21, h, m, s).getTime()
+
+section('截止时间解析：')
+check('按当前年补齐（10月26日 23:59）',
+  clock(reminder.parseDeadlineText('10月26日 (周一) 23:59 截止', day)), '2026-10-26 23:59')
+check('18:00 前的字符串', clock(reminder.parseDeadlineText('10月21日 (周三) 09:05 截止', day)),
+  '2026-10-21 09:05')
+check('跨年顺延到明年', clock(reminder.parseDeadlineText('1月5日 (周二) 10:00 截止',
+  new Date(2026, 11, 30, 9, 0))), '2027-01-05 10:00')
+check('非法文本返回空', clock(reminder.parseDeadlineText('兜底处理', day)), '空')
+check('2月30日不算数', clock(reminder.parseDeadlineText('2月30日 (周一) 10:00 截止', day)), '空')
+check('优先用 planEndTime', reminder.parseDeadline({
+  planEndTime: new Date(2026, 9, 21, 17, 30).getTime(),
+  deadlineTime: '10月22日 (周四) 09:00 截止',
+}, day).source, 'planEndTime')
+check('没有时间戳就用字符串', reminder.parseDeadline({
+  deadlineTime: '10月21日 (周三) 17:00 截止',
+}, day).source, 'deadlineTime')
+check('两个都没有则为空', reminder.parseDeadline({}, day).at, 'null')
+
+section('今天要不要提醒、什么时候提醒：')
+const soonCls = reminder.classifyDeadline(new Date(at(15, 0)), day, {})
+check('今天 15:00 到期 → 提前 30 分钟', clock(soonCls.notifyAt), '2026-10-21 14:30')
+check('归类为 soon', soonCls.window, 'soon')
+const eveningCls = reminder.classifyDeadline(new Date(at(23, 59, 59)), day, {})
+check('今天 23:59 到期 → 17:30 统一提醒', clock(eveningCls.notifyAt), '2026-10-21 17:30')
+check('归类为 evening', eveningCls.window, 'evening')
+check('18:00 整点算 18:00 后',
+  reminder.classifyDeadline(new Date(at(18, 0)), day, {}).window, 'evening')
+check('17:59 算 18:00 前',
+  clock(reminder.classifyDeadline(new Date(at(17, 59)), day, {}).notifyAt), '2026-10-21 17:29')
+check('明天到期不算今天',
+  reminder.classifyDeadline(new Date(new Date(2026, 9, 22, 9, 0).getTime()), day, {}).isToday, 'false')
+check('提前分钟数可配',
+  clock(reminder.classifyDeadline(new Date(at(15, 0)), day, { advanceMinutes: 10 }).notifyAt),
+  '2026-10-21 14:50')
+
+section('该弹的通知：')
+const items = [
+  { transactNo: 'A', applyName: '今天 15:00 到期', planEndTime: at(15, 0) },
+  { transactNo: 'B', applyName: '今天 16:00 到期', planEndTime: at(16, 0) },
+  { transactNo: 'C', applyName: '今天 23:59 到期', planEndTime: at(23, 59, 59) },
+  { transactNo: 'D', applyName: '明天 10:00 到期', planEndTime: new Date(2026, 9, 22, 10, 0).getTime() },
+  { transactNo: 'E', applyName: '今天 11:00 已经过期', planEndTime: at(11, 0) },
+]
+check('14:00 时还没到点', reminder.dueNotifications(items, day, {}).length, '0')
+check('14:35 轮到 A', reminder.dueNotifications(items, new Date(at(14, 35)), {})
+  .map((item) => item.ticketNo).join(','), 'A')
+check('15:31 轮到 B', reminder.dueNotifications(items, new Date(at(15, 31)), {})
+  .map((item) => item.ticketNo).join(','), 'B')
+check('过期的不再补发', reminder.dueNotifications(items, new Date(at(16, 30)), {})
+  .map((item) => item.ticketNo).join(','), '')
+check('17:20 还没到 17:30', reminder.dueNotifications(items, new Date(at(17, 20)), {}).length, '0')
+check('17:30 提醒 18:00 后的', reminder.dueNotifications(items, new Date(at(17, 30)), {})
+  .map((item) => item.ticketNo).join(','), 'C')
+const sentMap = { '2026-10-21|C|evening': Date.now() }
+check('提醒过的不会重复', reminder.dueNotifications(items, new Date(at(17, 40)), {}, sentMap).length, '0')
+check('去重键格式', reminder.describeItem(items[0], day, {}).key, '2026-10-21|A|soon')
+
+section('通知文案：')
+const soonMsgs = reminder.buildNotifications(
+  reminder.dueNotifications(items, new Date(at(14, 35)), {}))
+check('提前提醒是一条', soonMsgs.length, '1')
+check('标题带办件名', soonMsgs[0].title.includes('今天 15:00 到期'), 'true')
+check('正文带截止时间', soonMsgs[0].body.includes('截止时间：'), 'true')
+const eveningMsgs = reminder.buildNotifications(
+  reminder.dueNotifications([
+    { transactNo: 'C', applyName: '今晚 A 单', planEndTime: at(23, 59, 59) },
+    { transactNo: 'F', applyName: '今晚 B 单', planEndTime: at(20, 0) },
+  ], new Date(at(17, 30)), {}))
+check('18:00 后合并成一条', eveningMsgs.length, '1')
+check('一条里列出两张单', eveningMsgs[0].body.split('\n').length, '2')
+check('标题说清有几个', eveningMsgs[0].title.includes('2 个工单'), 'true')
+
+section('提醒入参：')
+const reminderCfg = reminder.reminderConfig({})
+check('列表接口', reminderCfg.listPath, '/api-gateway/jpaas-jtodo-server/manager/new-pending/list')
+check('typeId 固定', reminderCfg.typeId, 'VDq5V3vBJSj1NHy14tUDi')
+check('sortRole', reminderCfg.sortRole, '1')
+check('applyState', reminderCfg.applyState, '0')
+check('plan', reminderCfg.plan, '0')
+check('默认每页 10 条', reminderCfg.pageSize, '10')
+const configReminder = store.DEFAULTS.reminder
+check('配置里默认每 30 分钟', configReminder.intervalMinutes, '30')
+check('配置里默认 18:00 分界', configReminder.eveningHour, '18')
+check('配置里默认 17:30 统一提醒', configReminder.eveningNotifyTime, '17:30')
+
+// ============================================================================
+// 六、可选：真实接口（只判定，不建日程）
 // ============================================================================
 
 async function live() {

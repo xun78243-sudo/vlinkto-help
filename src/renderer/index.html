@@ -14,13 +14,14 @@
       <div class="logo">叮</div>
       <div class="brand-text">
         <h1>微联叮小助手</h1>
-        <p>考试日程 · 缺陷单总结</p>
+        <p>考试日程 · 缺陷单总结 · 到期提醒</p>
       </div>
     </div>
 
     <nav class="menu" id="tabs">
       <button class="menu-item is-active" data-pane="exam" type="button">考试日程</button>
       <button class="menu-item" data-pane="defect" type="button">缺陷单总结</button>
+      <button class="menu-item" data-pane="reminder" type="button">到期提醒</button>
       <button class="menu-item" data-pane="log" type="button">运行日志</button>
     </nav>
 
@@ -184,6 +185,58 @@
               <span class="hint" id="defect-settings-hint">提交人按「账号 / 名称」匹配作者名或邮箱</span>
             </div>
           </div>
+        </section>
+      </div>
+
+      <!-- ================= 到期提醒 ================= -->
+      <div class="pane" id="pane-reminder" hidden>
+        <section class="card">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>工单到期提醒助手</h2>
+              <p class="hint" id="reminder-hint">每 30 分钟查一次待办；今天 18:00 前到期的提前 30 分钟提醒，18:00 后到期的统一 17:30 提醒</p>
+            </div>
+            <label class="switch" title="开启 / 关闭到期提醒">
+              <input type="checkbox" id="reminder-switch">
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div class="stat-row">
+            <div class="stat">
+              <span class="stat-label">运行状态</span>
+              <strong id="reminder-state">已关闭</strong>
+            </div>
+            <div class="stat">
+              <span class="stat-label">上次检查</span>
+              <strong id="reminder-last">—</strong>
+            </div>
+            <div class="stat">
+              <span class="stat-label">下次检查</span>
+              <strong id="reminder-next">—</strong>
+            </div>
+            <div class="stat">
+              <span class="stat-label">今天到期</span>
+              <strong id="reminder-today">—</strong>
+            </div>
+          </div>
+
+          <div class="actions">
+            <button id="btn-reminder-run" class="btn primary" type="button">立即检查</button>
+            <button id="btn-reminder-test" class="btn ghost small" type="button">测试通知</button>
+            <span class="spacer"></span>
+            <span class="reminder-meta" id="reminder-meta">—</span>
+          </div>
+
+          <div class="reminder-list" id="reminder-list" hidden>
+            <div class="reminder-row reminder-row-head">
+              <span class="reminder-col-name">办件名</span>
+              <span class="reminder-col-time">截止时间</span>
+              <span class="reminder-col-plan">提醒</span>
+            </div>
+            <div id="reminder-rows"></div>
+          </div>
+          <p class="hint reminder-empty" id="reminder-empty">还没检查过，点「立即检查」或等下一轮定时任务</p>
         </section>
       </div>
 
