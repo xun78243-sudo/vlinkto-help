@@ -64,6 +64,7 @@ async function generate(options) {
       cacheRoot,
       fetchDepth: cfg.fetchDepth,
       timeoutMs: cfg.gitTimeoutMs,
+      auth: { user: cfg.gitAuthUser, password: cfg.gitAuthPassword },
       log,
     })
     totalCommits = all.length

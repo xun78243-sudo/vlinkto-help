@@ -65,6 +65,10 @@ const DEFAULTS = {
     // 提交人过滤：账号 / 中文名，任意一项命中作者名或邮箱即算
     gitUser: 'xuning',
     gitName: '徐宁',
+    // 仓库访问用的 GitLab 账号密码（留空则复用本机 git 凭据）。
+    // 只存在本机 config.json 里，默认值保持空串，不进仓库。
+    gitAuthUser: '',
+    gitAuthPassword: '',
     defaultGitUrl: 'http://192.168.5.15/jpaas/jagent/be/jagent-web/tree/release-4.3.5.17',
     commitLimit: 20,
     gitSectionLimit: 10,

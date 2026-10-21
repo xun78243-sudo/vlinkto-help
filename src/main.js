@@ -147,6 +147,8 @@ function defectView() {
     gitUser: cfg.gitUser || '',
     gitName: cfg.gitName || '',
     defaultGitUrl: cfg.defaultGitUrl || '',
+    gitAuthUser: cfg.gitAuthUser || '',
+    hasGitPassword: Boolean(cfg.gitAuthPassword),
     aiModel: cfg.aiModel || '',
     aiBaseUrl: cfg.aiBaseUrl || '',
     hasApiKey: Boolean(cfg.aiApiKey),
@@ -495,11 +497,17 @@ function registerIpc() {
     const cfg = store.loadConfig(userDir)
     const target = cfg.defect
     const source = patch && typeof patch === 'object' ? patch : {}
-    for (const key of ['gitUser', 'gitName', 'defaultGitUrl', 'aiModel', 'aiBaseUrl', 'aiApiKey']) {
-      if (typeof source[key] === 'string') target[key] = source[key].trim()
+    for (const key of ['gitUser', 'gitName', 'defaultGitUrl', 'gitAuthUser', 'gitAuthPassword',
+      'aiModel', 'aiBaseUrl', 'aiApiKey']) {
+      if (typeof source[key] === 'string') {
+        target[key] = key === 'gitAuthPassword' || key === 'aiApiKey'
+          ? source[key]
+          : source[key].trim()
+      }
     }
     store.saveConfig(userDir, cfg)
-    log('info', `缺陷单设置已保存：git 账号=${target.gitUser || '（空）'}，模型=${target.aiModel || '（空）'}`)
+    log('info', `缺陷单设置已保存：git 账号=${target.gitUser || '（空）'}`
+      + `，仓库访问账号=${target.gitAuthUser || '（用本机凭据）'}，模型=${target.aiModel || '（空）'}`)
     return snapshot()
   })
 

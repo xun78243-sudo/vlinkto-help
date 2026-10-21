@@ -79,9 +79,11 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
   服务端默认页大小只有 10，本程序一次请求 100 条。
 - `formData.model` 是一段 **JSON 字符串**，要二次 `JSON.parse` 才能拿到字段数组。
 - `thirdAppUrl` 实测是**相对路径**（`/index.html#/tododetail?iid=…`），只按 `?iid=` 取值，绝对地址同样兼容。
-- git 提交不走 GitLab REST API（那需要额外 token），而是用**本机已保存的 git 凭据**
-  `git fetch --depth` 到缓存目录（`%APPDATA%\微联叮小助手\git-cache\<hash>`）后 `git log`。
-  所以**前提是这台机器上曾经 clone / pull 过该仓库**，凭据已被 Windows 凭据管理器记住。
+- git 提交不走 GitLab REST API（那需要额外 token），而是 `git fetch --depth` 到缓存目录
+  （`%APPDATA%\微联叮小助手\git-cache\<hash>`）后 `git log`。
+- 认证有两种方式，**填了设置里的仓库账号密码就用 Basic 认证（优先）**，否则复用本机凭据
+  （Windows 凭据管理器里记住的）；后一种要求这台机器上曾经 clone / pull 过该仓库。
+  密码只在本机 `config.json` 里，不进仓库、不写日志，拉取时也不会拼进 URL（避免出现在进程命令行里）。
 - 提交人过滤：「git 账号」或「git 名称」命中作者名 / 邮箱即算本人（默认取本机 git 配置）。
 - 分支不存在时会列出相近分支名；凭据缺失会明确提示先手动 clone 一次。
 
@@ -90,6 +92,7 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 | 项 | 默认值 |
 | --- | --- |
 | git 账号 / 名称 | `xuning` / `徐宁` |
+| 仓库访问账号 / 密码 | 留空 = 用本机 git 凭据；填了就按 HTTP Basic 认证拉取（只存本机 `config.json`） |
 | 默认 git 地址 | `http://192.168.5.15/jpaas/jagent/be/jagent-web/tree/release-4.3.5.17` |
 | AI 服务地址 | `http://192.168.10.51:31587/common-inference-server/interface/v1` |
 | AI 模型 | `Qwen3.6-27B`（下拉列出内网模型的对话类部分） |
@@ -320,9 +323,12 @@ Node 方式跑并立刻退出（可临时 `Remove-Item Env:\ELECTRON_RUN_AS_NODE
 
 **7. 缺陷单总结报「本机没有该仓库的访问凭据」**
 
-这台机器还没访问过那个 GitLab 仓库。先在命令行对仓库执行一次
-`git clone http://192.168.5.15/jpaas/jagent/be/jagent-web.git`（或 `git fetch`）并输入账号密码，
-凭据会被 Windows 凭据管理器记住，之后程序就能直接复用了。
+两种解决办法，任选其一：
+
+- 到「设置」里填 **仓库访问账号 / 密码**（推荐，换机器只改配置即可）；
+- 或先在这台机器上对仓库执行一次
+  `git clone http://192.168.5.15/jpaas/jagent/be/jagent-web.git` 并输入账号密码，
+  凭据会被 Windows 凭据管理器记住，之后程序直接复用。
 
 **8. 缺陷单总结提示「没有匹配的提交记录」**
 

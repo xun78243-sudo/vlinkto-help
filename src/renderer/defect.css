@@ -204,6 +204,13 @@
   color: var(--muted);
 }
 
+.defect-settings .field-note {
+  flex: 1 1 240px;
+  align-self: flex-end;
+  padding-bottom: 8px;
+  line-height: 1.4;
+}
+
 /* ---------------- 结果区 ---------------- */
 
 .defect-result {

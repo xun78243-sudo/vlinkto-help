@@ -39,7 +39,8 @@ function log(level, message) {
 }
 
 async function main() {
-  const cfg = store.DEFAULTS.defect
+  const userDir = path.join(process.env.APPDATA || os.homedir(), '微联叮小助手')
+  const cfg = store.loadConfig(userDir).defect
   const withAi = process.argv.includes('--ai')
   const gitUrl = process.env.DEFECT_GITURL || cfg.defaultGitUrl
 
@@ -66,12 +67,14 @@ async function main() {
   const parsed = git.parseGitUrl(gitUrl)
   console.log(`        仓库=${parsed.cloneUrl}`)
   console.log(`        分支=${parsed.branch}`)
+  console.log(`        访问凭据=${cfg.gitAuthUser ? `配置账号 ${cfg.gitAuthUser}` : '本机 git 凭据'}`)
   const commits = await git.fetchCommits({
     cloneUrl: parsed.cloneUrl,
     branch: parsed.branch,
     cacheRoot: path.join(os.tmpdir(), 'dsh-defect-check'),
     fetchDepth: cfg.fetchDepth,
     timeoutMs: cfg.gitTimeoutMs,
+    auth: { user: cfg.gitAuthUser, password: cfg.gitAuthPassword },
     log,
   })
   check('拉取到提交', commits.length > 0, 'true')

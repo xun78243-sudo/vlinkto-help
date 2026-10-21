@@ -15,10 +15,24 @@ const { DefectError } = require('./ticket')
 
 const FIELD_SEP = '\u001f'
 
+/**
+ * 生成 HTTP Basic 认证参数。
+ * 账号密码都填了才启用；启用时同时清掉 credential.helper，避免凭据助手弹窗/挂起。
+ * 密码只在内存里编码成头部，不写日志、不进 URL（URL 会出现在进程命令行里）。
+ */
+function authArgs(auth) {
+  const user = String((auth && auth.user) || '').trim()
+  const password = String((auth && auth.password) || '')
+  if (!user || !password) return []
+  const token = Buffer.from(`${user}:${password}`, 'utf8').toString('base64')
+  return ['-c', 'credential.helper=', '-c', `http.extraheader=AUTHORIZATION: Basic ${token}`]
+}
+
 function run(args, options = {}) {
-  const { cwd, timeoutMs = 60000 } = options
+  const { cwd, timeoutMs = 60000, auth = null } = options
+  const fullArgs = [...authArgs(auth), ...args]
   return new Promise((resolve) => {
-    execFile('git', args, {
+    execFile('git', fullArgs, {
       cwd,
       timeout: timeoutMs,
       maxBuffer: 32 * 1024 * 1024,
@@ -96,8 +110,8 @@ function parseGitUrl(rawUrl) {
 }
 
 /** 列出远端分支，用于「分支不存在」时给出候选。 */
-async function listRemoteBranches(cloneUrl, { timeoutMs = 20000 } = {}) {
-  const result = await run(['ls-remote', '--heads', cloneUrl], { timeoutMs })
+async function listRemoteBranches(cloneUrl, { timeoutMs = 20000, auth = null } = {}) {
+  const result = await run(['ls-remote', '--heads', cloneUrl], { timeoutMs, auth })
   if (!result.ok) return []
   return result.stdout
     .split('\n')
@@ -161,7 +175,8 @@ function filterCommits(commits, { gitUser = '', gitName = '', limit = 20 } = {})
  */
 async function fetchCommits(options) {
   const {
-    cloneUrl, branch, cacheRoot, fetchDepth = 200, timeoutMs = 60000, log = () => {},
+    cloneUrl, branch, cacheRoot, fetchDepth = 200, timeoutMs = 60000, auth = null,
+    log = () => {},
   } = options
 
   if (!cloneUrl || !branch) throw new DefectError('缺少仓库地址或分支')
@@ -183,14 +198,17 @@ async function fetchCommits(options) {
   const remoteResult = await run(remoteArgs, { cwd: dir, timeoutMs })
   if (!remoteResult.ok) throw explainGitFailure(remoteResult.stderr, { branch })
 
-  log('info', `拉取 git 提交：${branch}（depth=${fetchDepth}）`)
+  log('info', `拉取 git 提交：${branch}（depth=${fetchDepth}${auth && auth.user ? `，账号 ${auth.user}` : '，本机凭据'}）`)
   const fetchResult = await run(
     ['fetch', '--no-tags', `--depth=${Math.max(1, Number(fetchDepth) || 200)}`, 'origin', branch],
-    { cwd: dir, timeoutMs },
+    { cwd: dir, timeoutMs, auth },
   )
   if (!fetchResult.ok) {
     const failure = explainGitFailure(fetchResult.stderr, { branch })
-    const branches = await listRemoteBranches(cloneUrl, { timeoutMs: 15000 })
+    if (auth && auth.user) {
+      failure.hint = `当前用配置的 git 账号 ${auth.user} 访问，请确认密码正确、该账号有仓库读权限`
+    }
+    const branches = await listRemoteBranches(cloneUrl, { timeoutMs: 15000, auth })
     const similar = branches.filter((name) => name.includes(branch.slice(0, 8)))
       .slice(0, 5)
     if (similar.length) failure.hint = `${failure.hint}；相近分支：${similar.join('、')}`
@@ -236,6 +254,7 @@ function formatGitSection({
 }
 
 module.exports = {
+  authArgs,
   parseGitUrl,
   parseLogOutput,
   filterCommits,

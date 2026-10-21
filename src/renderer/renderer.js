@@ -295,6 +295,11 @@ async function loadDefectSettings() {
   $('set-git-url').value = defectInfo.defaultGitUrl || ''
   $('set-apikey').value = ''
   $('set-apikey').placeholder = defectInfo.hasApiKey ? '已保存（留空则不修改）' : '通常留空即可'
+  $('set-git-auth-user').value = defectInfo.gitAuthUser || ''
+  $('set-git-auth-pass').value = ''
+  $('set-git-auth-pass').placeholder = defectInfo.hasGitPassword
+    ? '已保存（留空则不修改）'
+    : '留空则用本机 git 凭据'
 
   if (!$('defect-giturl').value && defectInfo.defaultGitUrl) {
     $('defect-giturl').value = defectInfo.defaultGitUrl
@@ -330,14 +335,19 @@ async function submitDefectSettings() {
     gitUser: $('set-git-user').value,
     gitName: $('set-git-name').value,
     defaultGitUrl: $('set-git-url').value,
+    gitAuthUser: $('set-git-auth-user').value,
     aiModel: $('set-model').value,
   }
   const key = $('set-apikey').value.trim()
   if (key) patch.aiApiKey = key
+  const password = $('set-git-auth-pass').value
+  if (password) patch.gitAuthPassword = password
   const next = await api.saveDefectSettings(patch)
   render(next)
   $('set-apikey').value = ''
   $('set-apikey').placeholder = '已保存（留空则不修改）'
+  $('set-git-auth-pass').value = ''
+  $('set-git-auth-pass').placeholder = '已保存（留空则不修改）'
   return next
 }
 

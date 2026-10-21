@@ -148,6 +148,19 @@
               <input id="set-apikey" type="password" spellcheck="false" placeholder="通常留空即可">
             </label>
           </div>
+          <div class="form-row">
+            <label class="field">
+              <span>仓库访问账号</span>
+              <input id="set-git-auth-user" type="text" spellcheck="false" placeholder="留空则用本机 git 凭据">
+            </label>
+            <label class="field">
+              <span>仓库访问密码</span>
+              <input id="set-git-auth-pass" type="password" spellcheck="false" placeholder="留空则不修改">
+            </label>
+            <p class="hint field-note">
+              仅存本机 config.json，用于 git 拉取时做 Basic 认证；两栏都填才生效
+            </p>
+          </div>
           <div class="actions">
             <button id="btn-defect-save" class="btn primary small" type="button">保存设置</button>
             <span class="hint" id="defect-settings-hint">提交人按「账号 / 名称」匹配作者名或邮箱</span>
