@@ -21,7 +21,16 @@
     <nav class="menu" id="tabs">
       <button class="menu-item is-active" data-pane="exam" type="button">考试日程</button>
       <button class="menu-item" data-pane="defect" type="button">缺陷单总结</button>
+      <button class="menu-item" data-pane="log" type="button">运行日志</button>
     </nav>
+
+    <div class="side-account">
+      <div class="side-account-title">账号</div>
+      <div class="side-account-body" id="side-account-body">
+        <div class="side-account-sub">正在读取…</div>
+      </div>
+      <button id="btn-refresh" class="btn ghost small side-refresh" type="button">重新获取 Token</button>
+    </div>
 
     <div class="side-foot">
       <span class="version" id="version">v1.1.0</span>
@@ -31,20 +40,6 @@
 
   <div class="main">
     <main class="content">
-      <section class="card">
-        <div class="card-head">
-          <div class="card-title">
-            <h2>账号</h2>
-            <p class="hint">从微联叮客户端自动读取当前登录状态</p>
-          </div>
-          <button id="btn-refresh" class="btn ghost">重新获取 Token</button>
-        </div>
-        <div id="token-body" class="token-body">
-          <span class="dot dot-idle"></span>
-          <span class="token-text">正在读取…</span>
-        </div>
-      </section>
-
       <!-- ================= 考试日程 ================= -->
       <div class="pane" id="pane-exam">
         <section class="card">
@@ -205,16 +200,18 @@
         </section>
       </div>
 
-      <section class="card log-card">
-        <div class="card-head">
-          <div class="card-title">
-            <h2>运行日志</h2>
-            <p class="hint">同一天的日志也会写入 logs 目录</p>
+      <div class="pane" id="pane-log" hidden>
+        <section class="card log-card">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>运行日志</h2>
+              <p class="hint">同一天的日志也会写入 logs 目录</p>
+            </div>
+            <button id="btn-clear" class="btn ghost small">清空显示</button>
           </div>
-          <button id="btn-clear" class="btn ghost small">清空显示</button>
-        </div>
-        <div id="log-view" class="log-view"></div>
-      </section>
+          <div id="log-view" class="log-view"></div>
+        </section>
+      </div>
     </main>
 
     <footer class="footer">

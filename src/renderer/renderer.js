@@ -36,34 +36,31 @@ function el(tag, className, text) {
 // ---------------------------------------------------------------- 渲染
 
 function renderToken(token) {
-  const body = $('token-body')
+  const body = $('side-account-body')
   body.textContent = ''
 
   if (!token) {
-    body.appendChild(el('span', 'dot dot-idle'))
-    body.appendChild(el('span', 'token-text', '正在读取…'))
+    body.appendChild(el('div', 'side-account-sub', '正在读取…'))
     return
   }
 
   if (!token.ok) {
-    body.appendChild(el('span', 'dot dot-error'))
-    const wrap = el('span', 'token-text')
-    wrap.appendChild(el('div', '', '未能获取 access-token'))
-    wrap.appendChild(el('div', 'meta', token.error || '请确认微联叮客户端已登录'))
-    body.appendChild(wrap)
+    body.appendChild(el('div', 'side-account-user side-account-error', '未获取到 token'))
+    body.appendChild(el('div', 'side-account-sub', token.error || '请在微联叮客户端登录后重试'))
     return
   }
 
   const hours = Number(token.remainingHours || 0)
   const level = hours <= 24 ? 'warn' : 'ok'
-  body.appendChild(el('span', `dot dot-${level}`))
 
-  const wrap = el('span', 'token-text')
-  wrap.appendChild(el('div', '',
-    `已获取 ${token.username || '当前用户'} 的 access-token · 剩余 ${hours.toFixed(1)} 小时`))
-  wrap.appendChild(el('div', 'meta',
-    `到期 ${fmtFull(token.expiresAt)} · 来源 ${token.source || 'vlinkd 客户端'}`))
-  body.appendChild(wrap)
+  const head = el('div', 'side-account-user')
+  head.appendChild(el('span', `dot dot-${level}`))
+  head.appendChild(el('span', '', token.username || '当前用户'))
+  body.appendChild(head)
+
+  body.appendChild(el('div', 'side-account-sub', `剩余 ${hours.toFixed(1)} 小时`))
+  body.appendChild(el('div', 'side-account-sub', `到期 ${fmtFull(token.expiresAt)}`))
+  body.appendChild(el('div', 'side-account-sub', `来源 ${token.source || 'vlinkd 客户端'}`))
 }
 
 function renderExam(exam) {
@@ -192,6 +189,7 @@ function switchPane(name) {
   }
   $('pane-exam').hidden = name !== 'exam'
   $('pane-defect').hidden = name !== 'defect'
+  $('pane-log').hidden = name !== 'log'
 }
 
 function resetStages() {

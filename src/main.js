@@ -625,6 +625,22 @@ async function runDefectSmoke() {
   }))()`)
   result.ticketNo = ticketNo
   result.gitUrl = gitUrl
+
+  // 顺带验证左侧三个菜单项与「运行日志」独立面板
+  result.panes = await mainWindow.webContents.executeJavaScript(`(() => {
+    const click = (name) => document.querySelector('.menu-item[data-pane="' + name + '"]').click()
+    const hidden = (name) => document.getElementById('pane-' + name).hidden
+    click('log')
+    const logOnly = !hidden('log') && hidden('exam') && hidden('defect')
+    const logLines = document.querySelectorAll('#log-view .log-line').length
+    const logViewHeight = Math.round(
+      document.querySelector('#pane-log .log-view').getBoundingClientRect().height)
+    click('exam')
+    const examOnly = !hidden('exam') && hidden('log') && hidden('defect')
+    click('defect')
+    const defectOnly = !hidden('defect') && hidden('exam') && hidden('log')
+    return { logOnly, examOnly, defectOnly, logLines, logViewHeight }
+  })()`)
   return result
 }
 
@@ -668,12 +684,17 @@ if (!gotLock) {
         title: document.title,
         version: (document.getElementById('version') || {}).textContent,
         examState: (document.getElementById('exam-state') || {}).textContent,
-        tokenText: (document.getElementById('token-body') || {}).innerText,
+        tokenText: (document.getElementById('side-account-body') || {}).innerText,
         logLines: document.querySelectorAll('.log-line').length,
         switchChecked: Boolean(document.getElementById('exam-switch') && document.getElementById('exam-switch').checked),
         lastResult: (document.getElementById('exam-result') || {}).textContent,
         nextRun: (document.getElementById('exam-next') || {}).textContent,
         menuItems: document.querySelectorAll('.menu-item').length,
+        sideAccount: Boolean(document.querySelector('.side-account')),
+        panes: ['exam', 'defect', 'log'].map(function (name) {
+          var node = document.getElementById('pane-' + name)
+          return Boolean(node && !node.hidden)
+        }),
         sidebar: (() => {
           const node = document.querySelector('.sidebar')
           return node ? Math.round(node.getBoundingClientRect().width) : 0
@@ -717,7 +738,7 @@ if (!gotLock) {
                 "document.getElementById('btn-refresh').click()")
               await new Promise((resolve) => setTimeout(resolve, 2500))
               const refreshed = await mainWindow.webContents.executeJavaScript(probe)
-              after.refreshOk = refreshed.tokenText.includes('已获取')
+              after.refreshOk = refreshed.tokenText.includes('剩余')
               after.logLinesAfterRefresh = refreshed.logLines
 
               // 关窗隐藏到托盘

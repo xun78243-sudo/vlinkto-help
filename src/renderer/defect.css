@@ -78,8 +78,78 @@ body {
   font-weight: 600;
 }
 
-.side-foot {
+.side-account {
   margin-top: auto;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.side-account-title {
+  margin-bottom: 4px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.side-account-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.side-account-user {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  word-break: break-all;
+}
+
+.side-account-error {
+  color: #fecaca;
+}
+
+.side-account-sub {
+  font-size: 11px;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.78);
+  word-break: break-all;
+}
+
+.side-account .dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 7px;
+  box-shadow: none;
+}
+
+.side-account .side-refresh {
+  width: 100%;
+  margin-top: 8px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.side-account .side-refresh:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.side-account .side-refresh:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.side-foot {
+  margin-top: 8px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -104,6 +174,27 @@ body {
 
 .pane[hidden] {
   display: none;
+}
+
+/* 运行日志单独成一页时撑满高度 */
+#pane-log {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+#pane-log[hidden] {
+  display: none;
+}
+
+#pane-log .log-card {
+  flex: 1;
+  min-height: 0;
+}
+
+#pane-log .log-view {
+  max-height: none;
 }
 
 /* ---------------- 表单 ---------------- */
