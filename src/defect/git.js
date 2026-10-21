@@ -237,31 +237,11 @@ async function fetchCommits(options) {
 }
 
 /**
- * 程序侧拼装「更新包提交路径」，不交给模型自由发挥。
+ * 「更新包提交路径」直接用入参的 git 地址，不交给模型，也不做二次加工。
  */
-function formatGitSection({
-  branch, commits, commitUrlBase = '', fileLimitPerCommit = 8, limit = 0,
-} = {}) {
-  const all = Array.isArray(commits) ? commits : []
-  if (!all.length) {
-    return `更新包提交路径：分支 ${branch || '（未知）'}（未找到匹配的提交记录）`
-  }
-
-  const list = limit > 0 ? all.slice(0, limit) : all
-  const suffix = list.length < all.length ? `，此处仅列最近 ${list.length} 个` : ''
-  const lines = [`更新包提交路径：分支 ${branch}（共 ${all.length} 个提交${suffix}）`]
-  list.forEach((commit, index) => {
-    const date = commit.date ? ` ${commit.date}` : ''
-    lines.push(`${index + 1}. ${commit.short || commit.hash}${date} ${commit.subject || ''}`.trimEnd())
-    if (commitUrlBase && commit.hash) lines.push(`   提交地址：${commitUrlBase}${commit.hash}`)
-    const files = Array.isArray(commit.files) ? commit.files : []
-    if (files.length) {
-      const shown = files.slice(0, fileLimitPerCommit)
-      const rest = files.length - shown.length
-      lines.push(`   涉及文件：${shown.join('、')}${rest > 0 ? ` 等 ${files.length} 个文件` : ''}`)
-    }
-  })
-  return lines.join('\n')
+function formatUpdatePath(gitUrl) {
+  const url = String(gitUrl || '').trim()
+  return `更新包提交路径：${url || '（未填写 git 地址）'}`
 }
 
 module.exports = {
@@ -272,6 +252,6 @@ module.exports = {
   matchesAuthor,
   fetchCommits,
   listRemoteBranches,
-  formatGitSection,
+  formatUpdatePath,
   cacheDirFor,
 }

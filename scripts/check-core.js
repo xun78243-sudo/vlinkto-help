@@ -218,12 +218,9 @@ check('不匹配为 0', defectGit.filterCommits(sampleCommits, { gitUser: 'nobod
 check('不配置则全通过', defectGit.filterCommits(sampleCommits, {}).length, '2')
 check('commitLimit 生效', defectGit.filterCommits(sampleCommits, { limit: 1 }).length, '1')
 
-const gitSection = defectGit.formatGitSection({
-  branch: 'b', commits: sampleCommits, commitUrlBase: 'http://h/r/-/commit/', limit: 1,
-})
-check('分段含分支', gitSection.includes('分支 b'), 'true')
-check('分段含提交地址', gitSection.includes('http://h/r/-/commit/a1'), 'true')
-check('limit 截断后面的提交', gitSection.includes('a1') && !gitSection.includes('b2'), 'true')
+const pathLine = defectGit.formatUpdatePath('  http://192.168.5.15/jpaas/jagent/be/jagent-web/tree/release-4.3.5.17  ')
+check('更新包提交路径 = 入参地址原样', pathLine, '更新包提交路径：http://192.168.5.15/jpaas/jagent/be/jagent-web/tree/release-4.3.5.17')
+check('地址为空时有兜底', defectGit.formatUpdatePath(''), '更新包提交路径：（未填写 git 地址）')
 
 section('git log 输出解析：')
 const logText = 'abc1234\u001fabc1234\u001fxuning\u001fxn1458@hanweb.com\u001f2026-10-15\u001ffix:x\n'

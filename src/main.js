@@ -589,6 +589,7 @@ async function runDefectSmoke() {
     description: (document.getElementById('out-description').value || '').slice(0, 60),
     analysisLength: (document.getElementById('out-analysis').value || '').length,
     measuresLength: (document.getElementById('out-measures').value || '').length,
+    measuresTail: (document.getElementById('out-measures').value || '').slice(-120),
     copyButtons: document.querySelectorAll('#defect-result .copy').length,
     errorShown: !document.getElementById('defect-error').hidden,
     errorText: document.getElementById('defect-error').innerText.slice(0, 200),

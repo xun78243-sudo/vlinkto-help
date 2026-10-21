@@ -71,7 +71,6 @@ const DEFAULTS = {
     gitAuthPassword: '',
     defaultGitUrl: 'http://192.168.5.15/jpaas/jagent/be/jagent-web/tree/release-4.3.5.17',
     commitLimit: 20,
-    gitSectionLimit: 10,
     fetchDepth: 200,
     gitTimeoutMs: 60000,
     // 内网 OpenAI 兼容推理服务

@@ -90,13 +90,8 @@ async function main() {
     console.log(`        最近一条：${mine[0].short} ${mine[0].date} ${mine[0].subject}`)
   }
 
-  const gitSection = git.formatGitSection({
-    branch: parsed.branch,
-    commits: mine,
-    commitUrlBase: parsed.commitUrlBase,
-    limit: cfg.gitSectionLimit,
-  })
-  check('更新包提交路径非空', gitSection.length > 20, 'true')
+  const gitSection = git.formatUpdatePath(gitUrl)
+  check('更新包提交路径 = 入参地址', gitSection, `更新包提交路径：${gitUrl}`)
 
   section('3. AI 生成：')
   if (!withAi) {

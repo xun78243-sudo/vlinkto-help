@@ -55,7 +55,8 @@ async function generate(options) {
   const parsed = git.parseGitUrl(gitUrl)
   let commits = []
   let totalCommits = 0
-  let gitSection = ''
+  // 更新包提交路径直接用入参的 git 地址，与提交能不能拉到无关
+  const gitSection = git.formatUpdatePath(gitUrl)
 
   try {
     const all = await git.fetchCommits({
@@ -77,12 +78,6 @@ async function generate(options) {
     if (!commits.length) {
       warnings.push(`分支 ${parsed.branch} 最近 ${all.length} 条提交里没有匹配「${cfg.gitUser || cfg.gitName}」的记录，请检查设置里的 git 账号/名称`)
     }
-    gitSection = git.formatGitSection({
-      branch: parsed.branch,
-      commits,
-      commitUrlBase: parsed.commitUrlBase,
-      limit: Number(cfg.gitSectionLimit) || 0,
-    })
     stage('git', 'done', { commits: commits.length, scanned: all.length })
   } catch (error) {
     const failure = error instanceof DefectError
@@ -90,7 +85,6 @@ async function generate(options) {
       : new DefectError(`拉取 git 提交失败：${error.message}`)
     log('error', failure.message + (failure.hint ? `（${failure.hint}）` : ''))
     errors.push({ stage: 'git', message: failure.message, hint: failure.hint || '' })
-    gitSection = `更新包提交路径：分支 ${parsed.branch}（未取到提交记录：${failure.message}）`
     stage('git', 'error', { message: failure.message })
   }
 
