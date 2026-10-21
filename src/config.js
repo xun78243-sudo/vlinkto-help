@@ -82,11 +82,13 @@ const DEFAULTS = {
     describeMaxChars: 4000,
     // 确认提交：AI 生成完成后自动创建一条 CMS 信息数据
     infoAddPath: '/api-gateway/jpaas-cms-server/manager/info/add',
+    infoListPath: '/api-gateway/jpaas-cms-server/manager/info/list',
     infoWebId: '2bdebd6aee3f40668668dbddbee2e15f',
     infoColumnId: 'EQdL5HW2wo07vWzVjsxYr',
     infoSource: '产品研发一部',
     infoAuthor: '', // 留空 = 用 gitName（徐宁）
     infoAutoSubmit: true,
+    infoPublish: true,
     infoTimeoutMs: 30000,
   },
   app: {

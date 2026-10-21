@@ -127,7 +127,15 @@
 
           <div class="defect-info" id="defect-info" hidden>
             <span class="defect-info-text" id="defect-info-text"></span>
-            <button id="btn-defect-submit" class="btn ghost small" type="button">重新提交</button>
+            <button id="btn-defect-url" class="btn ghost small" type="button" hidden>重新获取地址</button>
+          </div>
+
+          <div class="defect-link" id="defect-link" hidden>
+            <div class="defect-link-label">信息地址</div>
+            <div class="defect-link-row">
+              <a id="out-url" class="defect-link-url" href="#" target="_blank" rel="noreferrer"></a>
+              <button class="btn ghost small copy" data-copy="url" type="button">复制</button>
+            </div>
           </div>
 
           <div class="defect-settings" id="defect-settings" hidden>
@@ -169,45 +177,11 @@
                 <input type="checkbox" id="set-info-auto">
                 <span class="slider"></span>
               </label>
-              <span class="switch-label">生成后自动提交「信息数据」（调用 info/add 建一条记录）</span>
+              <span class="switch-label">生成后自动创建「信息数据」并发布，取回信息地址</span>
             </div>
             <div class="actions">
               <button id="btn-defect-save" class="btn primary small" type="button">保存设置</button>
               <span class="hint" id="defect-settings-hint">提交人按「账号 / 名称」匹配作者名或邮箱</span>
-            </div>
-          </div>
-
-          <div class="defect-result" id="defect-result" hidden>
-            <div class="result-block">
-              <div class="result-head">
-                <h3>标题</h3>
-                <button class="btn ghost small copy" data-copy="title" type="button">复制</button>
-              </div>
-              <textarea id="out-title" class="result-body" rows="2" spellcheck="false"></textarea>
-            </div>
-
-            <div class="result-block">
-              <div class="result-head">
-                <h3>工单问题描述</h3>
-                <button class="btn ghost small copy" data-copy="description" type="button">复制</button>
-              </div>
-              <textarea id="out-description" class="result-body" rows="3" spellcheck="false"></textarea>
-            </div>
-
-            <div class="result-block">
-              <div class="result-head">
-                <h3>工单分析过程</h3>
-                <button class="btn ghost small copy" data-copy="analysis" type="button">复制</button>
-              </div>
-              <textarea id="out-analysis" class="result-body" rows="4" spellcheck="false"></textarea>
-            </div>
-
-            <div class="result-block">
-              <div class="result-head">
-                <h3>工单处理措施及更新包提交路径</h3>
-                <button class="btn ghost small copy" data-copy="measures" type="button">复制</button>
-              </div>
-              <textarea id="out-measures" class="result-body" rows="8" spellcheck="false"></textarea>
             </div>
           </div>
         </section>

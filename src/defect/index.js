@@ -166,6 +166,7 @@ async function generate(options) {
       gitUrl: parsed.branchUrl,
       fingerprint,
       infoIid: (info && info.iid) || '',
+      infoUrl: (info && info.url) || '',
     },
     errors,
   }
@@ -200,7 +201,7 @@ async function submitStage({ cfg, token, fields, ticketNo, fingerprint, options,
     log('info', '已关闭「生成后自动提交」，未创建信息数据')
     stage('submit', 'done', { skipped: true })
     return {
-      ok: false, skipped: true, iid: '', message: '未自动提交（设置里关闭了自动提交），可以点「重新提交」',
+      ok: false, skipped: true, iid: '', message: '未自动提交（设置里关闭了「生成后自动提交」）',
     }
   }
 
@@ -208,7 +209,7 @@ async function submitStage({ cfg, token, fields, ticketNo, fingerprint, options,
     log('warn', '分析过程未生成成功，跳过自动提交')
     stage('submit', 'done', { skipped: true })
     return {
-      ok: false, skipped: true, iid: '', message: '分析过程未生成成功，未自动提交；改完可点「重新提交」',
+      ok: false, skipped: true, iid: '', message: '分析过程未生成成功，未自动提交',
     }
   }
 
@@ -223,10 +224,27 @@ async function submitStage({ cfg, token, fields, ticketNo, fingerprint, options,
   try {
     const payload = infoApi.buildInfoPayload({ fields, ticketNo, cfg })
     const result = await infoApi.submitInfo(cfg, token, payload, { log })
-    stage('submit', 'done', { iid: result.iid })
-    return {
-      ok: true, skipped: false, iid: result.iid, message: `信息数据已生成（iid: ${result.iid}）`,
+
+    // 建好之后再查一次列表，把这条信息的 fullUrl 取回来给界面复制。
+    let url = ''
+    let urlError = ''
+    try {
+      const found = await infoApi.fetchInfoUrl(cfg, token, result.iid, { log })
+      url = found.url
+      if (!url) {
+        urlError = '信息已创建，但列表里还没刷出它的地址（多半是还没发布），可稍后点「重新获取地址」'
+        log('warn', urlError)
+      }
+    } catch (error) {
+      urlError = error.message || '查询信息地址失败'
+      log('warn', `查询信息地址失败：${urlError}`)
     }
+
+    const message = url
+      ? '信息已创建并发布，地址已生成，可一键复制'
+      : urlError || '信息已创建'
+    stage('submit', 'done', { iid: result.iid, url })
+    return { ok: true, skipped: false, iid: result.iid, url, message }
   } catch (error) {
     const failure = error instanceof DefectError
       ? error

@@ -493,6 +493,12 @@ function registerIpc() {
     clipboard.writeText(String(text == null ? '' : text))
     return true
   })
+  ipcMain.handle('app:openUrl', async (event, url) => {
+    const target = String(url || '').trim()
+    if (!/^https?:\/\//i.test(target)) return false
+    await shell.openExternal(target)
+    return true
+  })
 
   // ---------------- 缺陷单总结助手 ----------------
 
@@ -567,10 +573,11 @@ function registerIpc() {
     }
   })
 
-  /** 用界面上（可能被手工改过）的四段文本重新创建一条信息数据。 */
-  ipcMain.handle('defect:submit', async (event, payload) => {
-    const input = payload && typeof payload === 'object' ? payload : {}
+  /** 列表里还没刷出地址时，用上一次创建留下的 iid 再查一次 fullUrl。 */
+  ipcMain.handle('defect:url', async () => {
     const cfg = defectConfig()
+    const meta = state.defect.lastMeta || {}
+    if (!meta.iid) throw new Error('还没有创建过信息数据，请先点「生成总结」')
 
     let tokenInfo = state.token
     if (!tokenInfo || !tokenInfo.ok) tokenInfo = findToken()
@@ -578,27 +585,22 @@ function registerIpc() {
       throw new Error('未能获取 access-token，请先点「重新获取 Token」再试')
     }
 
-    const fields = input.fields && typeof input.fields === 'object'
-      ? input.fields
-      : (state.defect.lastResult && state.defect.lastResult.fields) || {}
-    if (!String(fields.title || '').trim()) throw new Error('还没有可提交的内容，请先生成总结')
-
-    const meta = state.defect.lastMeta || {}
-    const body = defectInfo.buildInfoPayload({ fields, ticketNo: meta.ticketNo || '', cfg })
-    const response = await defectInfo.submitInfo(cfg, tokenInfo.token, body, { log })
+    const found = await defectInfo.fetchInfoUrl(cfg, tokenInfo.token, meta.iid, { log })
     const info = {
-      ok: true,
+      ok: Boolean(found.url),
       skipped: false,
-      iid: response.iid,
-      message: `信息数据已生成（iid: ${response.iid}）`,
+      iid: meta.iid,
+      url: found.url,
+      message: found.url
+        ? '信息地址已获取，可一键复制'
+        : '信息列表里还没查到这个地址，可能还在审核或未发布，稍后再试',
     }
 
     if (state.defect.lastResult) {
-      state.defect.lastResult.info = info
-      state.defect.lastFingerprint = (state.defect.lastResult.meta
-        && state.defect.lastResult.meta.fingerprint) || ''
+      state.defect.lastResult.info = Object.assign({}, state.defect.lastResult.info, info)
+      if (state.defect.lastResult.meta) state.defect.lastResult.meta.infoUrl = found.url || ''
     }
-    log('info', `手动重新提交信息数据：${info.iid}`)
+    log(found.url ? 'info' : 'warn', `重新获取信息地址：${found.url || '未查到'}`)
     return info
   })
 
@@ -639,18 +641,16 @@ async function runDefectSmoke() {
   const result = await mainWindow.webContents.executeJavaScript(`(() => ({
     paneVisible: document.getElementById('pane-defect').hidden === false,
     busy: Boolean(document.getElementById('btn-defect-generate').disabled),
-    title: document.getElementById('out-title').value,
-    description: (document.getElementById('out-description').value || '').slice(0, 60),
-    analysisLength: (document.getElementById('out-analysis').value || '').length,
-    measuresLength: (document.getElementById('out-measures').value || '').length,
-    measuresTail: (document.getElementById('out-measures').value || '').slice(-120),
-    copyButtons: document.querySelectorAll('#defect-result .copy').length,
+    linkShown: !document.getElementById('defect-link').hidden,
+    linkText: document.getElementById('out-url').textContent,
+    linkHref: document.getElementById('out-url').getAttribute('href'),
+    copyButtons: document.querySelectorAll('#defect-link .copy').length,
+    resultBlocks: document.querySelectorAll('.result-block').length,
     errorShown: !document.getElementById('defect-error').hidden,
     errorText: document.getElementById('defect-error').innerText.slice(0, 200),
     infoShown: !document.getElementById('defect-info').hidden,
     infoText: document.getElementById('defect-info-text').textContent,
-    submitButtonVisible: Boolean(document.getElementById('btn-defect-submit')
-      && document.getElementById('btn-defect-submit').getBoundingClientRect().width > 0),
+    urlButtonVisible: Boolean(document.getElementById('btn-defect-url').hidden === false),
     meta: document.getElementById('defect-meta').textContent,
     stages: Array.from(document.querySelectorAll('.stage')).map((node) => node.className),
     layout: (() => {
@@ -662,7 +662,7 @@ async function runDefectSmoke() {
       }
       const textareas = Array.from(document.querySelectorAll('#defect-result textarea'))
         .map((node) => Math.round(node.getBoundingClientRect().height))
-      const visibleCopies = Array.from(document.querySelectorAll('#defect-result .copy'))
+      const visibleCopies = Array.from(document.querySelectorAll('#defect-link .copy'))
         .filter((node) => node.getBoundingClientRect().width > 0).length
       const ticket = document.getElementById('defect-ticket').getBoundingClientRect()
       const gitBox = document.getElementById('defect-giturl').getBoundingClientRect()
@@ -675,7 +675,7 @@ async function runDefectSmoke() {
         gitInput: rect('#defect-giturl'),
         inputsStacked: gitBox.top >= ticket.bottom - 1,
         inputsSameLeft: Math.abs(gitBox.left - ticket.left) < 2,
-        resultBlock: rect('#defect-result'),
+        linkBlock: rect('#defect-link'),
         textareas,
         visibleCopies,
         horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
@@ -684,6 +684,27 @@ async function runDefectSmoke() {
   }))()`)
   result.ticketNo = ticketNo
   result.gitUrl = gitUrl
+
+  // 用一段假地址把「信息地址」块渲染出来，验证布局与复制按钮（不发请求）
+  result.linkDemo = await mainWindow.webContents.executeJavaScript(`(() => {
+    const url = 'https://work.hanweb.com/wd/gdzsk/art/2026/art_0123456789abcdef0123456789abcdef.html'
+    renderInfo({ ok: true, iid: 'demo', url, message: '信息已创建并发布，地址已生成，可一键复制' })
+    renderLink(url)
+    const box = document.getElementById('defect-link')
+    const link = document.getElementById('out-url')
+    const copy = document.querySelector('#defect-link .copy')
+    const rect = box.getBoundingClientRect()
+    return {
+      shown: !box.hidden,
+      text: link.textContent,
+      href: link.getAttribute('href'),
+      blockWidth: Math.round(rect.width),
+      linkWidth: Math.round(link.getBoundingClientRect().width),
+      copyWidth: copy ? Math.round(copy.getBoundingClientRect().width) : 0,
+      urlButtonHidden: document.getElementById('btn-defect-url').hidden,
+      overflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+    }
+  })()`)
 
   // 顺带验证左侧三个菜单项与「运行日志」独立面板
   result.panes = await mainWindow.webContents.executeJavaScript(`(() => {

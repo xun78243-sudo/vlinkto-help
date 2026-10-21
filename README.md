@@ -4,8 +4,8 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 
 - **考试日程小助理** —— 按聊天记录自动创建考试日程（开启后立即执行一次，之后每 3 小时一次）；
 - **缺陷单总结助手** —— 输入工单编号 + git 分支地址，自动生成工单里要填的
-  标题 / 问题描述 / 分析过程 / 处理措施（含更新包提交路径），每项可一键复制，
-  并自动调用 CMS 接口建一条「信息数据」（可关）。
+  标题 / 问题描述 / 分析过程 / 处理措施（含更新包提交路径），
+  自动建一条 CMS「信息数据」并把可复制、可访问的信息地址显示出来。
 
 应用常驻系统托盘，关闭窗口只是隐藏。
 
@@ -19,13 +19,13 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 
 | 文件 | 大小 | 适用 |
 | --- | --- | --- |
-| [vlinkto-assistant-setup-1.2.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-setup-1.2.0.exe) | 106 MB | 安装版：按用户安装、免管理员，自动建桌面与开始菜单快捷方式 |
-| [vlinkto-assistant-portable-1.2.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-portable-1.2.0.exe) | 106 MB | 便携版：单文件免安装，双击即用 |
+| [vlinkto-assistant-setup-1.3.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-setup-1.3.0.exe) | 106 MB | 安装版：按用户安装、免管理员，自动建桌面与开始菜单快捷方式 |
+| [vlinkto-assistant-portable-1.3.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-portable-1.3.0.exe) | 106 MB | 便携版：单文件免安装，双击即用 |
 
 使用前提：微联叮客户端已登录、机器能访问 `work.hanweb.com`；
 缺陷单总结还要求能访问内网 `192.168.10.51`（AI 服务）和 `192.168.5.15`（GitLab）。
 
-> 上面是 1.2.0（新增「确认提交：自动创建信息数据」）的链接。若暂时 404，说明该版本还没发到 Release，
+> 上面是 1.3.0（新增「创建信息数据 + 取回信息地址」）的链接。若暂时 404，说明该版本还没发到 Release，
 > 可直接用本地 `dist\` 下的安装包，或自己 `npm run dist` 打一个。
 
 ---
@@ -41,8 +41,8 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 | 系统托盘 | 关闭窗口隐藏到托盘；托盘右键可显示主窗口、开关小助理、立即执行、重新获取 Token、打开日志/配置、开机自启、退出 |
 | 日志 | 界面实时日志 + 按天写入 `logs\exam_YYYY-MM-DD.log` |
 | 幂等 | 每条消息按 `msgId` 记账（`state.json`），同一条消息不会重复建日程；首次启动会自动迁移旧 Python 版的记账文件 |
-| 缺陷单总结 | 工单编号 + git 分支地址 → 标题 / 问题描述 / 分析过程 / 处理措施，四项各自一键复制 |
-| 确认提交 | 生成完成后自动调用 `info/add` 建一条「信息数据」（用四个字段内容），可关闭、可改完再「重新提交」 |
+| 缺陷单总结 | 工单编号 + git 分支地址 → 标题 / 问题描述 / 分析过程 / 处理措施（内部生成，界面不再展示） |
+| 确认提交 | 生成完成后自动调用 `info/add` 建一条「信息数据」，再查 `info/list` 取 `fullUrl`，界面上显示「信息地址」并可一键复制 |
 | 界面 | 左侧菜单切换「考试日程 / 缺陷单总结 / 运行日志」，右侧只显示当前菜单的内容；缺陷单表单纵向排列、不预填任何默认值 |
 
 检测逻辑（与 Python 版一致）：
@@ -63,7 +63,7 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 2. 填 **工单编号**（如 `JETABLE2026101400071`）和 **git 地址（含分支）**，例如
    `http://192.168.5.15/jpaas/jagent/be/jagent-web/tree/release-4.3.5.17`；
 3. 点「生成总结」，依次跑四步：**查工单 → 拉取提交 → AI 生成 → 提交信息**（通常 15–40 秒，界面有进度点）；
-4. 在四个文本框里核对、按需修改，逐个点「复制」贴进工单系统；改完若想用新内容重建信息数据，点「重新提交」。
+4. 结束后界面只显示一行「信息地址」，点「复制」粘进工单即可；若提示还没查到地址，点「重新获取地址」再查一次。
 
 ### 四个字段从哪来
 
@@ -77,10 +77,12 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 更新包路径不让模型生成，避免编造 commit 或文件路径；模型只写分析与措施。
 提交清单仍会作为 AI 的输入（只喂给模型，不拼进结果），用来让措施更贴合实际改动。
 
-### 确认提交：自动创建信息数据
+### 确认提交：创建信息数据并取回地址
 
-四段内容组装完成后，会自动 `POST /api-gateway/jpaas-cms-server/manager/info/add`
-建一条信息数据（进度条第 ④ 步）。除下列位置外，入参与抓到的原始请求完全一致：
+四段内容组装完成后自动 `POST …/manager/info/add` 建一条信息数据（进度条第 ④ 步），
+再 `POST …/manager/info/list` 按 iid 找到这一条、把 `fullUrl` 显示到界面上供一键复制。
+
+**add 入参**（除下列位置外与抓到的原始请求逐字一致）：
 
 | 入参位置 | 取值 |
 | --- | --- |
@@ -89,19 +91,29 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 | `elementList` 里 `gdwtmx` | 工单问题描述（原样纯文本） |
 | `elementList` 里 `gdfxgc` | 分析过程，一行一个 `<p><span style="…">`（做了 HTML 转义） |
 | `elementList` 里 `gdclcsjlj` | 处理措施及更新包提交路径，同上 |
-| `extendsEntity.infoContent` | 由改好的 `elementList` 重新 `JSON.stringify` |
-| `iid` | 每次新生成 32 位 uuid4（与示例同构，接口会回显同一个 id） |
-| `deployTime` | 当前时间戳（`deployTimeType=0` 立即发布） |
+| `extendsEntity.infoContent` | 由改好的 `elementList` 重新 `JSON.stringify`（不同步 CMS 读不到字段） |
+| `iid` | 每次新生成 32 位 uuid4（示例值就是 uuid4，接口回显同一个） |
+| `deployTime` / `releaseTime` / `publishTime` / `firstPublishTime` | 同一个当前时间戳 |
+| `state` | `published`——**不带它建出来是草稿**：信息列表查不到、文章地址 404（见下） |
 | `author` / `source` | `git 名称`（徐宁）/ `产品研发一部` |
 | `webId` / `columnId` | 默认取示例值，可在 `config.json` 的 `defect.infoWebId/infoColumnId` 改 |
 
-- 成功：结果上方显示 `信息数据已生成（iid: …）`，日志里也有接口响应摘要。
-- 失败（token 过期 / 超时 / 返回码非 200）：四段文本不丢，点 **重新提交** 会拿界面上**当前编辑过**的内容再建一条。
-- 设置里可关闭「生成后自动提交」；关闭时只生成文本，不建记录。
-- 同一单号 + 同一 git 地址 + 同样的四段文本只会自动提交一次，避免重复建记录；手动「重新提交」不受此限制。
-- AI 生成失败时不会自动提交（避免把占位文本写进系统），改完再点「重新提交」。
+**list 入参**：`pageSize=10`、`pageNo=1`、`webId`、`columnId`，**必须放 query**（放 body 会 500「系统错误」），
+返回 `data.list[].fullUrl` 形如 `https://work.hanweb.com/wd/gdzsk/art/2026/art_<iid>.html`。
+
+- 界面上**不再显示四段文本**，只显示一行「信息地址」（可点开、可一键复制）。
+- 列表还没刷出地址时，结果条会给出 **重新获取地址**（用上次的 iid 重查，不新建记录）。
+- 失败（token 过期 / 超时 / 返回码非 200）：只提示错误，不写半条数据。
+- 设置里可关闭「生成后自动创建」，关掉就只生成四段文本、不建记录（也就没有地址）。
+- 同一单号 + 同一 git 地址 + 同样的四段文本只自动建一次，避免重复建记录。
+- AI 生成失败时不自动创建（避免把占位文本写进系统）。
+
+> 踩坑记录：最初按示例请求体提交，接口回「新增成功」并给了 iid，但那条记录 `state` 是草稿——
+> 信息列表里查不到、`art_<iid>.html` 也 404。补上 `state=published` 与三个时间戳后才真正发布可见。
+> 若想保留「草稿」行为，把 `config.json` 里 `defect.infoPublish` 改成 `false`。
 
 > 实测响应：`{"success":true,"message":"新增成功","code":"200","data":{"iid":"…"}}`。
+
 
 ### 实现要点（都是实测踩出来的）
 
@@ -129,7 +141,8 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 | AI 模型 | `Qwen3.6-27B`（下拉列出内网模型的对话类部分） |
 | 提交条数 | 参与分析最多取本人 20 条提交（提交清单只给模型看，结果里不再列出） |
 | 工单扫描 | 最多 100 条待办 |
-| 自动提交信息数据 | 默认开；关掉则只生成四段文本，不调用 `info/add` |
+| 自动创建信息数据 | 默认开；关掉则只生成四段文本，不调用 `info/add` |
+| 信息数据发布 | 默认建好即发布（`state=published`）；`config.json` 里 `defect.infoPublish:false` 可改成只存草稿（那样列表查不到地址） |
 | 信息数据发布位置 | `webId` / `columnId` 默认取示例值（栏目 + 站点），改 `config.json` 的 `defect.infoWebId/infoColumnId` |
 
 > 界面上的**工单编号和 git 地址两栏不预填任何默认值**，每次都手填（或粘贴）。
@@ -238,9 +251,10 @@ npm start
 npm run check          # 离线：国密向量、规则、token、缺陷单纯函数（URL 解析 / AI JSON / 信息数据入参）
 npm run check:live     # 额外跑一次真实聊天接口（dry-run，不建日程）
 npm run check:defect   # 缺陷单联网自检：查工单 + 拉 git 提交 + 真实调用一次模型（不建信息数据）
-npm run check:defect:submit  # 同上，并真实创建一条信息数据（会打印 iid 与响应）
+npm run check:defect:submit  # 同上，并真实创建一条信息数据、打印 iid 与信息地址
+$env:DEFECT_URL_IID='<iid>'; npm run check:defect   # 只按 iid 查信息地址，不新建记录
 npm run smoke          # Electron 冒烟：左侧菜单、开关、定时器、刷新按钮、关窗隐藏到托盘
-npm run smoke:defect   # Electron 端到端：点「生成总结」读回四个字段；提交走 dry-run，不建真实数据
+npm run smoke:defect   # Electron 端到端：点「生成总结」，验证第 ④ 步与「信息地址」块；提交走 dry-run
 ```
 
 `npm run check:live` 的输出形如：
@@ -317,7 +331,7 @@ src/
     ticket.js          待办列表定位工单（多页查找）+ 详情 formData.model 解析
     git.js             git 地址解析、浅拉取提交、按提交人过滤、更新包路径拼装（复用入参地址）
     ai.js              内网 OpenAI 兼容接口调用、提示词、JSON 容错解析
-    info.js            确认提交：信息数据入参模板 / 富文本转换 / 调 info/add
+    info.js            确认提交：信息数据入参模板 / 富文本转换 / 调 info/add、info/list 取 fullUrl
     index.js           四步编排 + 四段内容组装
   renderer/            界面（index.html / styles.css / defect.css / renderer.js）
 assets/

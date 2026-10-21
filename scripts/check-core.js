@@ -296,6 +296,37 @@ check('标题为空退回工单号',
   defectInfo.buildInfoPayload({ fields: { title: '' }, ticketNo: 'JET1' }).titleText, 'JET1')
 check('空内容不报错',
   defectInfo.buildInfoPayload({ fields: {} }).extendsEntity.elementList.length, '7')
+check('默认直接发布', infoPayload.state, 'published')
+check('发布时间 = deployTime', infoPayload.releaseTime, String(infoPayload.deployTime))
+check('publishTime 已填', infoPayload.publishTime, String(infoPayload.deployTime))
+check('关掉发布则不带 state',
+  defectInfo.buildInfoPayload({ fields: {}, cfg: { infoPublish: false } }).state, 'undefined')
+
+section('确认提交：从信息列表取地址：')
+const listPayload = {
+  code: '200',
+  data: {
+    list: [
+      { iid: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', fullUrl: 'https://h/art_aaa.html', state: 'published' },
+      {
+        iid: '718594bbc9cf4172aa50c714d32ee744',
+        fullUrl: 'https://work.hanweb.com/wd/gdzsk/art/2026/art_718594bbc9cf4172aa50c714d32ee744.html',
+        state: 'published',
+        titleText: '标题A',
+      },
+    ],
+  },
+}
+const parsedUrl = defectInfo.parseInfoList(listPayload, '718594bbc9cf4172aa50c714d32ee744')
+check('按 iid 命中', parsedUrl.found, 'true')
+check('取到 fullUrl', parsedUrl.url,
+  'https://work.hanweb.com/wd/gdzsk/art/2026/art_718594bbc9cf4172aa50c714d32ee744.html')
+check('带上 state', parsedUrl.state, 'published')
+check('iid 不存在返回空', defectInfo.parseInfoList(listPayload, 'ffff').url, '')
+check('空响应不报错', defectInfo.parseInfoList(null, 'x').url, '')
+check('列表为空返回空', defectInfo.parseInfoList({ data: { list: [] } }, 'x').found, 'false')
+check('没有 fullUrl 时退回 url 字段',
+  defectInfo.parseInfoList({ data: { list: [{ iid: 'i1', url: '/u/1' }] } }, 'i1').url, '/u/1')
 
 // ============================================================================
 // 五、可选：真实接口（只判定，不建日程）

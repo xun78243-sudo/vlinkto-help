@@ -151,6 +151,17 @@ async function main() {
     check('接口返回 iid', Boolean(submitted.iid), 'true')
     console.log(`        已创建信息数据：iid=${submitted.iid}`)
     console.log(`        响应：${JSON.stringify(submitted.raw).slice(0, 300)}`)
+
+    const found = await defectInfo.fetchInfoUrl(cfg, info.token, submitted.iid, { log })
+    check('列表里查到 fullUrl', Boolean(found.url), 'true')
+    if (found.url) console.log(`        信息地址：${found.url}`)
+  }
+
+  // 只验地址查询（不新建）：DEFECT_URL_IID=<已存在的 iid>
+  if (process.env.DEFECT_URL_IID) {
+    const found = await defectInfo.fetchInfoUrl(cfg, info.token, process.env.DEFECT_URL_IID, { log })
+    check('按 iid 查到 fullUrl', Boolean(found.url), 'true')
+    console.log(`        信息地址：${found.url || '（未查到）'}`)
   }
 }
 

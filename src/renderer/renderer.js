@@ -180,7 +180,6 @@ function bind() {
 
 // ---------------------------------------------------------------- 缺陷单总结
 
-const DEFECT_FIELDS = ['title', 'description', 'analysis', 'measures']
 const STAGE_TEXT = { ticket: '查工单', git: '拉取提交', ai: 'AI 生成', submit: '提交信息' }
 
 function switchPane(name) {
@@ -231,29 +230,14 @@ function clearDefectError() {
   box.textContent = ''
 }
 
-function autoSize(node) {
-  node.style.height = 'auto'
-  // 处理措施那一栏内容很长，限高后内部滚动，避免整页被拉得太长
-  const height = Math.min(Math.max(60, node.scrollHeight + 2), 420)
-  node.style.height = `${height}px`
-}
 
 function renderDefectResult(result) {
-  const fields = (result && result.fields) || {}
-  $('defect-result').hidden = false
-  for (const key of DEFECT_FIELDS) {
-    const node = $(`out-${key}`)
-    node.value = fields[key] || ''
-    autoSize(node)
-  }
-
   const meta = (result && result.meta) || {}
   const seconds = ((Number(meta.elapsedMs) || 0) / 1000).toFixed(1)
   const parts = []
-  if (meta.title) parts.push(meta.title)
   if (meta.branch) parts.push(`分支 ${meta.branch}`)
   parts.push(`提交 ${meta.commitCount || 0}/${meta.scannedCommits || 0} 条`)
-  if (meta.infoIid) parts.push('信息已生成')
+  if (meta.infoUrl) parts.push('信息已发布')
   if (meta.model) parts.push(meta.model)
   parts.push(`${seconds}s`)
   $('defect-meta').textContent = parts.join(' · ')
@@ -262,6 +246,7 @@ function renderDefectResult(result) {
     .join('\n')
 
   renderInfo(result && result.info)
+  renderLink((result && result.info && result.info.url) || '')
 
   for (const node of document.querySelectorAll('.copy')) {
     node.classList.remove('is-copied')
@@ -269,7 +254,25 @@ function renderDefectResult(result) {
   }
 }
 
-/** 确认提交结果条：成功蓝底、失败红底，「重新提交」按钮一直留着。 */
+/** 信息地址：有就显示可点击的链接 + 复制按钮，没有就整块收起来。 */
+function renderLink(url) {
+  const box = $('defect-link')
+  const link = $('out-url')
+  const text = String(url || '').trim()
+
+  if (!text) {
+    box.hidden = true
+    link.textContent = ''
+    link.removeAttribute('href')
+    return
+  }
+
+  box.hidden = false
+  link.textContent = text
+  link.href = text
+}
+
+/** 确认提交结果条：成功蓝底、失败红底；地址还没刷出来时给个「重新获取地址」。 */
 function renderInfo(info) {
   const box = $('defect-info')
   const text = $('defect-info-text')
@@ -278,6 +281,7 @@ function renderInfo(info) {
     box.hidden = true
     box.classList.remove('is-error', 'is-muted')
     text.textContent = ''
+    $('btn-defect-url').hidden = true
     return
   }
 
@@ -285,13 +289,14 @@ function renderInfo(info) {
   const skipped = Boolean(info.skipped)
   box.classList.toggle('is-error', info.ok !== true && !skipped)
   box.classList.toggle('is-muted', info.ok !== true && skipped)
+  $('btn-defect-url').hidden = !info.iid || Boolean(info.url)
   text.textContent = info.message
 }
 
 async function copyField(button) {
   const key = button.dataset.copy
   const node = $(`out-${key}`)
-  const text = node ? node.value : ''
+  const text = node ? (node.value || node.textContent || '') : ''
   await api.copy(text)
   button.textContent = '已复制'
   button.classList.add('is-copied')
@@ -411,28 +416,26 @@ function bindDefect() {
 
   $('btn-defect-generate').addEventListener('click', generateDefect)
 
-  $('btn-defect-submit').addEventListener('click', async () => {
-    const button = $('btn-defect-submit')
-    const fields = {}
-    for (const key of DEFECT_FIELDS) fields[key] = $(`out-${key}`).value
-
+  // 列表里还没刷出地址时，用上一次的 iid 再查一次
+  $('btn-defect-url').addEventListener('click', async () => {
+    const button = $('btn-defect-url')
     button.disabled = true
-    button.textContent = '提交中…'
-    clearDefectError()
+    button.textContent = '查询中…'
     try {
-      const info = await api.submitDefectInfo({ fields })
+      const info = await api.lookupDefectUrl()
       renderInfo(info)
-      const current = $('defect-meta').textContent
-      if (current && !current.includes('信息已生成')) {
-        $('defect-meta').textContent = `${current} · 信息已生成`
+      renderLink(info.url || '')
+      if (info.url) {
+        const current = $('defect-meta').textContent
+        if (current && !current.includes('信息已发布')) {
+          $('defect-meta').textContent = `${current} · 信息已发布`
+        }
       }
     } catch (error) {
-      const message = `提交失败：${cleanError(error)}`
-      renderInfo({ ok: false, message })
-      showDefectError('提交信息数据失败', cleanError(error))
+      showDefectError('查询信息地址失败', cleanError(error))
     } finally {
       button.disabled = false
-      button.textContent = '重新提交'
+      button.textContent = '重新获取地址'
     }
   })
 
@@ -462,16 +465,19 @@ function bindDefect() {
     }
   })
 
-  $('defect-result').addEventListener('click', (event) => {
-    const button = event.target.closest('.copy')
-    if (!button) return
-    copyField(button)
+  $('defect-link').addEventListener('click', (event) => {
+    const copyButton = event.target.closest('.copy')
+    if (copyButton) {
+      copyField(copyButton)
+      return
+    }
+    const link = event.target.closest('#out-url')
+    if (!link) return
+    // Electron 里 target=_blank 会另开窗口，统一交给系统浏览器打开
+    event.preventDefault()
+    const url = link.getAttribute('href')
+    if (url) api.openUrl(url)
   })
-
-  for (const key of DEFECT_FIELDS) {
-    const node = $(`out-${key}`)
-    if (node) node.addEventListener('input', () => autoSize(node))
-  }
 
   $('defect-ticket').addEventListener('keydown', (event) => {
     if (event.key === 'Enter') {
