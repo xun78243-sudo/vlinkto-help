@@ -287,6 +287,8 @@ function switchPane(name) {
   $('pane-exam').hidden = name !== 'exam'
   $('pane-defect').hidden = name !== 'defect'
   $('pane-reminder').hidden = name !== 'reminder'
+  const cloudPane = $('pane-cloud')
+  if (cloudPane) cloudPane.hidden = name !== 'cloud'
   $('pane-log').hidden = name !== 'log'
 }
 

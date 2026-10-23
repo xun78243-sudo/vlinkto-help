@@ -7,6 +7,7 @@
   <title>微联叮小助手</title>
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="defect.css">
+  <link rel="stylesheet" href="cloud.css">
 </head>
 <body>
   <aside class="sidebar">
@@ -14,7 +15,7 @@
       <div class="logo">叮</div>
       <div class="brand-text">
         <h1>微联叮小助手</h1>
-        <p>考试日程 · 缺陷单总结 · 到期提醒</p>
+        <p>考试日程 · 缺陷单总结 · 到期提醒 · 云手机</p>
       </div>
     </div>
 
@@ -22,6 +23,7 @@
       <button class="menu-item is-active" data-pane="exam" type="button">考试日程</button>
       <button class="menu-item" data-pane="defect" type="button">缺陷单总结</button>
       <button class="menu-item" data-pane="reminder" type="button">到期提醒</button>
+      <button class="menu-item" data-pane="cloud" type="button">云手机</button>
       <button class="menu-item" data-pane="log" type="button">运行日志</button>
     </nav>
 
@@ -252,6 +254,97 @@
           <div id="log-view" class="log-view"></div>
         </section>
       </div>
+
+      <!-- ================= 云手机 ================= -->
+      <div class="pane" id="pane-cloud" hidden>
+        <section class="card cloud-card">
+          <div class="card-head">
+            <div class="card-title">
+              <h2>云手机</h2>
+              <p class="hint" id="cloud-hint">插上 USB 或填局域网地址即可投屏并操控手机；画面走 scrcpy-server 视频流，触控/按键走控制通道</p>
+            </div>
+            <div class="cloud-head-actions">
+              <span class="cloud-badge" id="cloud-badge">未连接</span>
+              <button id="btn-cloud-connect" class="btn primary" type="button">连接</button>
+            </div>
+          </div>
+
+          <div class="cloud-toolbar">
+            <label class="field cloud-field">
+              <span>设备</span>
+              <select id="cloud-device-select"></select>
+            </label>
+            <label class="field cloud-field">
+              <span>局域网地址（可选）</span>
+              <input id="cloud-address" type="text" spellcheck="false" placeholder="例如 192.168.1.20:5555">
+            </label>
+            <button id="btn-cloud-scan" class="btn ghost small" type="button">刷新设备</button>
+            <button id="btn-cloud-wireless" class="btn ghost small" type="button">转无线</button>
+          </div>
+
+          <div class="cloud-stats">
+            <div class="stat">
+              <span class="stat-label">连接方式</span>
+              <strong id="cloud-tunnel">—</strong>
+            </div>
+            <div class="stat">
+              <span class="stat-label">画面尺寸</span>
+              <strong id="cloud-size">—</strong>
+            </div>
+            <div class="stat">
+              <span class="stat-label">编码 / 帧率</span>
+              <strong id="cloud-fps">—</strong>
+            </div>
+            <div class="stat">
+              <span class="stat-label">操作</span>
+              <strong id="cloud-mode">鼠标点击</strong>
+            </div>
+          </div>
+
+          <div class="cloud-stage">
+            <div class="cloud-screen" id="cloud-screen">
+              <canvas id="cloud-canvas"></canvas>
+              <div class="cloud-overlay" id="cloud-overlay">
+                <div class="cloud-overlay-title" id="cloud-overlay-title">手机未连接</div>
+                <div class="cloud-overlay-text" id="cloud-overlay-text">点右上角「连接」开始投屏</div>
+              </div>
+            </div>
+
+            <div class="cloud-side">
+              <div class="cloud-keys">
+                <button class="cloud-key" data-key="back" type="button" title="返回键">返回</button>
+                <button class="cloud-key" data-key="home" type="button" title="主页键">主页</button>
+                <button class="cloud-key" data-key="appswitch" type="button" title="任务键">任务</button>
+                <button class="cloud-key" data-key="power" type="button" title="电源键">电源</button>
+                <button class="cloud-key" data-key="volumeup" type="button" title="音量+">音量+</button>
+                <button class="cloud-key" data-key="volumedown" type="button" title="音量−">音量−</button>
+                <button class="cloud-key" data-key="rotate" type="button" title="旋转屏幕">旋转</button>
+                <button class="cloud-key" data-key="notification" type="button" title="下拉通知栏">通知栏</button>
+              </div>
+
+              <div class="cloud-type">
+                <textarea id="cloud-text" rows="2" spellcheck="false" placeholder="输入文字后发送到手机当前输入框"></textarea>
+                <div class="cloud-type-actions">
+                  <button id="btn-cloud-send-text" class="btn ghost small" type="button">发送文字</button>
+                  <button id="btn-cloud-send-enter" class="btn ghost small" type="button">回车</button>
+                </div>
+              </div>
+
+              <div class="cloud-extra">
+                <button id="btn-cloud-send-image" class="btn ghost small" type="button" title="把电脑上的图片推送到手机相册（可多选）">发送图片</button>
+                <button id="btn-cloud-pause" class="btn ghost small" type="button">暂停画面</button>
+                <button id="btn-cloud-screenshot" class="btn ghost small" type="button">保存截图</button>
+              </div>
+
+              <p class="hint cloud-transfer" id="cloud-transfer" hidden></p>
+
+              <p class="hint cloud-tip" id="cloud-tip">在画面上按住拖动 = 滑动；滚轮 = 上下滑动；Alt+点击 = 双指缩放（虚拟手指）</p>
+            </div>
+          </div>
+
+          <div class="cloud-error" id="cloud-error" hidden></div>
+        </section>
+      </div>
     </main>
 
     <footer class="footer">
@@ -260,5 +353,6 @@
   </div>
 
   <script src="renderer.js"></script>
+  <script src="cloud.js"></script>
 </body>
 </html>

@@ -38,6 +38,7 @@
     "files": [
       "src/**/*",
       "assets/*.png",
+      "assets/cloud/*",
       "package.json"
     ],
     "win": {

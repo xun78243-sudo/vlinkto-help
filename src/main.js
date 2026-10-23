@@ -19,15 +19,19 @@ const defect = require('./defect')
 const defectAi = require('./defect/ai')
 const defectInfo = require('./defect/info')
 const reminder = require('./reminder')
+const { createCloudController } = require('./cloud')
 
 const APP_NAME = '微联叮小助手'
 const ASSETS = path.join(__dirname, '..', 'assets')
 const LEGACY_STATE = path.join(__dirname, '..', 'legacy', 'state.json')
+// 云手机依赖的 adb / scrcpy-server 随安装包一起发布（assets/cloud）
+const CLOUD_RUNTIME = path.join(ASSETS, 'cloud')
 
 let mainWindow = null
 let tray = null
 let isQuitting = false
 let userDir = ''
+let cloud = null
 
 const MAX_LOGS = 400
 const SMOKE_MODE = process.argv.includes('--smoke')
@@ -884,6 +888,94 @@ function registerIpc() {
     isQuitting = true
     app.quit()
   })
+
+  registerCloudIpc()
+}
+
+/**
+ * 云手机：投屏 + 操控手机的 IPC。
+ * 每个处理函数都返回最新的云手机状态，渲染端直接拿去重绘。
+ */
+function registerCloudIpc() {
+  cloud = createCloudController({
+    binaryDir: CLOUD_RUNTIME,
+    log: (first, second) => {
+      if (second === undefined) log('info', first)
+      else log(first, second)
+    },
+    send: (channel, payload) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send(channel, payload)
+      }
+    },
+  })
+  global.__cloudShotDir = userDir
+
+  ipcMain.handle('cloud:state', async () => cloud.info())
+
+  ipcMain.handle('cloud:devices', async () => cloud.devices())
+
+  ipcMain.handle('cloud:start', async (event, serial) => {
+    log('info', '云手机：连接 ' + serial)
+    await cloud.start(serial)
+    return cloud.info()
+  })
+  ipcMain.handle('cloud:stop', async () => {
+    log('info', '云手机：断开连接')
+    await cloud.stop()
+    return cloud.info()
+  })
+
+  ipcMain.handle('cloud:pause', async (event, paused) => cloud.pause(Boolean(paused)))
+
+  ipcMain.handle('cloud:input', async (event, payload) => cloud.input(payload || {}))
+
+  ipcMain.handle('cloud:screenshot', async () => {
+    const result = await cloud.screenshot()
+    if (result.ok) log('info', '云手机：截图已保存 ' + result.file)
+    else log('warn', '云手机：截图失败 ' + result.error)
+    return result
+  })
+
+  /** 选本地图片 → adb push 到手机相册目录 → 触发媒体扫描 */
+  ipcMain.handle('cloud:sendImages', async (event) => {
+    if (!cloud || !cloud.isConnected()) {
+      return { ok: false, error: '手机未连接，请先连接云手机' }
+    }
+    const parent = BrowserWindow.fromWebContents(event.sender) || mainWindow
+    const options = {
+      title: '选择要发送到手机的图片',
+      buttonLabel: '发送',
+      properties: ['openFile', 'multiSelections'],
+      filters: [{ name: '图片', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+    }
+    const picked = parent && !parent.isDestroyed()
+      ? await dialog.showOpenDialog(parent, options)
+      : await dialog.showOpenDialog(options)
+    if (picked.canceled || !picked.filePaths.length) {
+      return { ok: false, canceled: true }
+    }
+
+    const result = await cloud.sendImages(picked.filePaths)
+    if (result.sent) {
+      log('info', `云手机：已发送 ${result.sent} 张图片到 ${result.dir}`)
+    }
+    if (result.failed) {
+      const firstError = result.errors && result.errors[0] ? result.errors[0].error : ''
+      log('warn', `云手机：${result.failed} 张图片发送失败${firstError ? `（${firstError}）` : ''}`)
+    }
+    if (!result.sent && !result.failed) {
+      log('warn', `云手机：发送图片失败 ${result.error || '未知错误'}`)
+    }
+    return result
+  })
+
+  ipcMain.handle('cloud:wireless', async (event, serial) => {
+    const address = await cloud.enableWireless(serial)
+    if (address) log('info', '云手机：已切换到无线连接 ' + address)
+    else log('warn', '云手机：转无线失败（取不到手机 IP 或连接失败）')
+    return address
+  })
 }
 
 /**
@@ -1100,6 +1192,7 @@ if (!gotLock) {
     if (process.argv.includes('--smoke')) {
       const withRun = process.argv.includes('--smoke-run')
       const withDefect = process.argv.includes('--smoke-defect')
+      const withCloud = process.argv.includes('--smoke-cloud')
       const probe = `(() => ({
         title: document.title,
         version: (document.getElementById('version') || {}).textContent,
@@ -1124,6 +1217,11 @@ if (!gotLock) {
         defectPaneHidden: Boolean(document.getElementById('pane-defect') && document.getElementById('pane-defect').hidden),
         defectInputs: document.querySelectorAll('#pane-defect input').length,
         defectCopyButtons: document.querySelectorAll('#defect-result .copy').length,
+        cloudSendButton: Boolean(document.getElementById('btn-cloud-send-image')),
+        cloudSendDisabled: Boolean(document.getElementById('btn-cloud-send-image')
+          && document.getElementById('btn-cloud-send-image').disabled),
+        cloudTransferHidden: Boolean(document.getElementById('cloud-transfer')
+          && document.getElementById('cloud-transfer').hidden),
       }))()`
 
       mainWindow.webContents.once('did-finish-load', () => {
@@ -1135,6 +1233,29 @@ if (!gotLock) {
 
             if (withDefect) {
               console.log(`SMOKE_DEFECT ${JSON.stringify(await runDefectSmoke())}`)
+            }
+
+            if (withCloud) {
+              const cloudInfo = await mainWindow.webContents.executeJavaScript(`(async () => {
+                document.querySelector('.menu-item[data-pane="cloud"]').click()
+                await new Promise((resolve) => setTimeout(resolve, 400))
+                const button = document.getElementById('btn-cloud-send-image')
+                const status = document.getElementById('cloud-transfer')
+                const pane = document.getElementById('pane-cloud')
+                const rect = button.getBoundingClientRect()
+                // 未连接时调用一次 IPC：不会弹文件框，用来验证 preload → 主进程的通路
+                const ipcResult = button.disabled ? await window.assistant.cloudSendImages() : null
+                return {
+                  paneVisible: Boolean(pane && !pane.hidden),
+                  buttonVisible: rect.width > 0 && rect.height > 0,
+                  buttonText: button.textContent,
+                  buttonDisabled: Boolean(button.disabled),
+                  transferHidden: Boolean(status && status.hidden),
+                  horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
+                  ipcResult,
+                }
+              })()`)
+              console.log(`SMOKE_CLOUD ${JSON.stringify(cloudInfo)}`)
             }
 
             const capture = process.argv.find((item) => item.startsWith('--capture='))

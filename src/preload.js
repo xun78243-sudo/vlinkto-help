@@ -33,4 +33,25 @@ contextBridge.exposeInMainWorld('assistant', {
   onDefectStage: (callback) => {
     ipcRenderer.on('defect:stage', (event, payload) => callback(payload))
   },
+  cloudState: () => ipcRenderer.invoke('cloud:state'),
+  cloudDevices: () => ipcRenderer.invoke('cloud:devices'),
+  cloudStart: (serial) => ipcRenderer.invoke('cloud:start', serial),
+  cloudStop: () => ipcRenderer.invoke('cloud:stop'),
+  cloudPause: (paused) => ipcRenderer.invoke('cloud:pause', paused),
+  cloudTouch: (event) => ipcRenderer.invoke('cloud:input', { kind: 'touch', event }),
+  cloudKey: (event) => ipcRenderer.invoke('cloud:input', { kind: 'key', event }),
+  cloudText: (payload) => ipcRenderer.invoke('cloud:input', { kind: 'text', payload }),
+  cloudScroll: (event) => ipcRenderer.invoke('cloud:input', { kind: 'scroll', event }),
+  cloudRotate: () => ipcRenderer.invoke('cloud:input', { kind: 'rotate' }),
+  cloudNotification: () => ipcRenderer.invoke('cloud:input', { kind: 'notification' }),
+  cloudDisplayPower: () => ipcRenderer.invoke('cloud:input', { kind: 'displayPower' }),
+  cloudScreenshot: () => ipcRenderer.invoke('cloud:screenshot'),
+  cloudSendImages: () => ipcRenderer.invoke('cloud:sendImages'),
+  cloudEnableWireless: (serial) => ipcRenderer.invoke('cloud:wireless', serial),
+  onCloudState: (callback) => {
+    ipcRenderer.on('cloud:state', (event, payload) => callback(payload))
+  },
+  onCloudFrames: (callback) => {
+    ipcRenderer.on('cloud:frames', (event, payload) => callback(payload))
+  },
 })

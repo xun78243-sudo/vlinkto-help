@@ -111,6 +111,14 @@ const DEFAULTS = {
     eveningNotifyTime: '17:30',
     notifyBeforeDeadlineOnly: true,
   },
+  cloud: {
+    // lastSerial: 上次连接的设备序列号（USB 序列号，或局域网 IP:端口）
+    lastSerial: '',
+    // address: 局域网地址输入框里保留的值
+    address: '',
+    // frameFlushMs: 视频帧合并发送窗口（毫秒），越小越实时，越大越省 IPC
+    frameFlushMs: 16,
+  },
   app: {
     closeToTray: true,
     autoLaunch: false,

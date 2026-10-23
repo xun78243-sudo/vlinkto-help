@@ -1,0 +1,265 @@
+/* 云手机面板（只依赖 styles.css / defect.css 里已有的变量与类） */
+
+.cloud-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.cloud-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cloud-badge {
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  white-space: nowrap;
+}
+
+.cloud-badge.is-ok {
+  background: rgba(22, 163, 74, 0.1);
+  color: var(--ok);
+  border-color: rgba(22, 163, 74, 0.25);
+}
+
+.cloud-badge.is-busy {
+  background: rgba(47, 111, 237, 0.1);
+  color: var(--accent);
+  border-color: rgba(47, 111, 237, 0.25);
+}
+
+.cloud-badge.is-error {
+  background: rgba(220, 38, 38, 0.1);
+  color: var(--danger);
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+.cloud-toolbar {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.cloud-field {
+  min-width: 190px;
+}
+
+.cloud-field:first-child {
+  min-width: 240px;
+}
+
+.cloud-field select,
+.cloud-field input {
+  width: 100%;
+}
+
+.cloud-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.cloud-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 190px;
+  gap: 16px;
+  align-items: start;
+}
+
+.cloud-screen {
+  position: relative;
+  background: #0b1220;
+  border-radius: 12px;
+  overflow: hidden;
+  min-height: 360px;
+  height: 62vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cloud-screen canvas {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  outline: none;
+  cursor: default;
+  user-select: none;
+}
+
+.cloud-screen.is-live canvas {
+  cursor: crosshair;
+}
+
+.cloud-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #cbd5e1;
+  background: radial-gradient(circle at 50% 40%, rgba(47, 111, 237, 0.18), rgba(11, 18, 32, 0.92));
+  text-align: center;
+  padding: 24px;
+}
+
+.cloud-overlay[hidden] {
+  display: none;
+}
+
+.cloud-overlay-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.cloud-overlay-text {
+  font-size: 12px;
+  max-width: 380px;
+  line-height: 1.6;
+}
+
+.cloud-side {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cloud-keys {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cloud-key {
+  border: 1px solid var(--line);
+  background: #f8fafc;
+  border-radius: 9px;
+  padding: 9px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.cloud-key:hover:not(:disabled) {
+  background: #eef2f7;
+  border-color: #cbd5e1;
+}
+
+.cloud-key:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.cloud-key:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.cloud-type {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cloud-type textarea {
+  resize: vertical;
+  min-height: 56px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: #fff;
+}
+
+.cloud-type textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(47, 111, 237, 0.12);
+}
+
+.cloud-type-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cloud-type-actions .btn {
+  flex: 1;
+}
+
+.cloud-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cloud-transfer {
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid rgba(22, 163, 74, 0.2);
+  border-radius: 8px;
+  background: rgba(22, 163, 74, 0.08);
+  color: var(--ok);
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.cloud-transfer.is-warn {
+  border-color: rgba(217, 119, 6, 0.25);
+  background: rgba(217, 119, 6, 0.08);
+  color: var(--warn);
+}
+
+.cloud-transfer[hidden] {
+  display: none;
+}
+
+.cloud-tip {
+  line-height: 1.6;
+}
+
+.cloud-error {
+  border: 1px solid rgba(220, 38, 38, 0.25);
+  background: rgba(220, 38, 38, 0.06);
+  color: var(--danger);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.cloud-error[hidden] {
+  display: none;
+}
+
+.cloud-error .hint {
+  color: var(--muted);
+  display: block;
+  margin-top: 2px;
+}
+
+@media (max-width: 900px) {
+  .cloud-stage {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .cloud-screen {
+    height: 52vh;
+  }
+
+  .cloud-stats {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
