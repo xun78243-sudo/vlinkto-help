@@ -1,12 +1,14 @@
 # 微联叮小助手
 
-Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，提供三个能力：
+Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，提供四个能力：
 
 - **考试日程小助理** —— 按聊天记录自动创建考试日程（开启后立即执行一次，之后每 3 小时一次）；
 - **缺陷单总结助手** —— 输入工单编号 + git 分支地址，自动生成工单里要填的
   标题 / 问题描述 / 分析过程 / 处理措施（含更新包提交路径），
   自动建一条 CMS「信息数据」并把可复制、可访问的信息地址显示出来；
-- **工单到期提醒助手** —— 每 30 分钟查一次待办，今天到期的工单在截止前（或 17:30）弹 Windows 通知。
+- **工单到期提醒助手** —— 每 30 分钟查一次待办，今天到期的工单在截止前（或 17:30）弹 Windows 通知；
+- **云手机** —— 插 USB 或填局域网地址连接 Android 手机，实时投屏并用鼠标/键盘操控，
+  还能把电脑上的图片一键发到手机相册。
 
 应用常驻系统托盘，关闭窗口只是隐藏。
 
@@ -20,13 +22,14 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 
 | 文件 | 大小 | 适用 |
 | --- | --- | --- |
-| [vlinkto-assistant-setup-1.1.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-setup-1.1.0.exe) | 106 MB | 安装版：按用户安装、免管理员，自动建桌面与开始菜单快捷方式 |
-| [vlinkto-assistant-portable-1.1.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-portable-1.1.0.exe) | 106 MB | 便携版：单文件免安装，双击即用 |
+| [vlinkto-assistant-setup-1.2.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-setup-1.2.0.exe) | 约 110 MB | 安装版：按用户安装、免管理员，自动建桌面与开始菜单快捷方式 |
+| [vlinkto-assistant-portable-1.2.0.exe](https://github.com/xun78243-sudo/vlinkto-help/releases/latest/download/vlinkto-assistant-portable-1.2.0.exe) | 约 110 MB | 便携版：单文件免安装，双击即用 |
 
 使用前提：微联叮客户端已登录、机器能访问 `work.hanweb.com`（到期提醒也走这个网关）；
 缺陷单总结还要求能访问内网 `192.168.10.51`（AI 服务）和 `192.168.5.15`（GitLab）。
+云手机还需要手机开启 USB 调试（首次连接在手机上允许调试授权）；无线模式要求手机与电脑在同一局域网。
 
-> 上面是 **v1.1.0**（考试日程 + 缺陷单总结/信息地址 + 工单到期提醒）的链接。若暂时 404，说明该版本还没发到 Release，
+> 上面是 **v1.2.0**（考试日程 + 缺陷单总结/信息地址 + 工单到期提醒 + 云手机）的链接。若暂时 404，说明该版本还没发到 Release，
 > 可直接用本地 `dist\` 下的安装包，或自己 `npm run dist` 打一个。
 
 ---
@@ -45,7 +48,9 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 | 缺陷单总结 | 工单编号 + git 分支地址 → 标题 / 问题描述 / 分析过程 / 处理措施（内部生成，界面不再展示） |
 | 确认提交 | 生成完成后自动调用 `info/add` 建一条「信息数据」，再查 `info/list` 取 `fullUrl`，界面上显示「信息地址」并可一键复制 |
 | 工单到期提醒 | 每 30 分钟查一次待办；今天 18:00 前到期的提前 30 分钟弹通知，18:00 后到期的统一 17:30 弹一条；界面上能看到今天到期的清单 |
-| 界面 | 左侧菜单切换「考试日程 / 缺陷单总结 / 到期提醒 / 运行日志」，右侧只显示当前菜单的内容；缺陷单表单纵向排列、不预填任何默认值 |
+| 云手机 | USB / 局域网连接 Android 手机，H.264 实时投屏；点击、拖动、滚轮、Alt+拖动缩放、右键返回，右侧可发返回/主页/任务/电源/音量/旋转/通知栏按键与文字 |
+| 发送图片 | 连接后点「发送图片」多选本地图片，推送到手机 `Pictures/CloudPhone`；重名自动加 `-1`/`-2`，触发媒体扫描后手机相册可直接看到 |
+| 界面 | 左侧菜单切换「考试日程 / 缺陷单总结 / 到期提醒 / 云手机 / 运行日志」，右侧只显示当前菜单的内容；缺陷单表单纵向排列、不预填任何默认值 |
 
 检测逻辑（与 Python 版一致）：
 
@@ -193,12 +198,47 @@ Electron 桌面应用：**自动从微联叮客户端取当前 access-token**，
 | `pageSize` / `maxPages` | `10` / `20` | 翻页规模 |
 | `typeId` / `sortRole` / `applyState` / `plan` | 见上 | 待办列表固定入参 |
 
+---
+
+## 云手机
+
+### 连接
+
+1. 手机打开「开发者选项」→ 打开 **USB 调试**，用数据线连电脑；首次连接在手机上点「允许调试」。
+2. 左侧菜单点「云手机」→「刷新设备」→ 选择设备 →「连接」。
+3. 已用 USB 连接时可以点「转无线」：程序会执行 `adb tcpip 5555`，把手机 `IP:5555` 填进地址栏；
+   断开当前连接后，用这个地址重新连接，即可拔掉 USB（手机与电脑需在同一局域网）。
+
+程序内置 adb 与 scrcpy-server，**不需要安装 Android SDK**；同一时间只连接一台手机。
+
+### 画面与操作
+
+- 视频走 scrcpy-server 的 H.264 流，渲染端用 WebCodecs `VideoDecoder` 解码到 canvas；不传输手机声音。
+- 鼠标：点击 = 点按，按住拖动 = 滑动，滚轮 = 上下滑动，`Alt` + 拖动 = 双指缩放，右键 = 返回。
+- 右侧按键：返回 / 主页 / 任务 / 电源 / 音量± / 旋转 / 通知栏；文字输入后点「发送文字」或按回车。
+- 「暂停画面」暂停接收新帧；「保存截图」通过 `adb exec-out screencap` 存到
+  `%APPDATA%\微联叮小助手\cloud-*.png`。
+
+### 发送图片到手机
+
+连接后点「发送图片」，可多选 `png/jpg/jpeg/gif/webp/bmp`：
+
+- 默认保存到手机 `/sdcard/Pictures/CloudPhone`（建目录失败时回退到 `/sdcard/Pictures`）；
+- 同名文件自动追加 `-1`、`-2`，不会覆盖手机上已有的图片；
+- 每张推送完成后触发媒体扫描（`MEDIA_SCANNER_SCAN_FILE`），手机相册可直接看到；
+- 面板显示成功张数和保存目录，部分/全部失败会分别提示；运行日志里有每张图片的明细。
+
+> 云手机内置的 adb 来自 Android SDK platform-tools，scrcpy-server 来自 scrcpy，
+> 均为 Apache-2.0；scrcpy 的许可文本见 `assets/cloud/LICENSE.scrcpy.txt`。
+
+---
+
 ## 运行
 
 ### 方式一：装成正式应用（推荐给使用者）
 
-双击 `dist\微联叮小助手-安装版-1.1.0.exe` 按向导装好，之后从桌面 / 开始菜单的
-「微联叮小助手」启动；也可以直接用免安装的 `dist\微联叮小助手-便携版-1.1.0.exe`。
+双击 `dist\微联叮小助手-安装版-1.2.0.exe` 按向导装好，之后从桌面 / 开始菜单的
+「微联叮小助手」启动；也可以直接用免安装的 `dist\微联叮小助手-便携版-1.2.0.exe`。
 详见下方「[打包成安装包](#打包成安装包)」。
 
 ### 方式二：源码方式运行（开发调试用）
@@ -297,6 +337,7 @@ npm run check:reminder  # 到期提醒联网自检：拉一次待办，打印解
 npm run check:reminder -- --at="17:31"   # 假装现在是今天 17:31，验证 17:30 那批提醒
 npm run smoke          # Electron 冒烟：左侧菜单、开关、定时器、刷新按钮、关窗隐藏到托盘
 npm run smoke:defect   # Electron 端到端：点「生成总结」，验证第 ④ 步与「信息地址」块；提交走 dry-run
+npm run smoke:cloud    # Electron 云手机页：按钮/布局，以及未连接时发送图片的 IPC 保护
 ```
 
 `npm run check:live` 的输出形如：
@@ -308,13 +349,14 @@ npm run smoke:defect   # Electron 端到端：点「生成总结」，验证第 
 `npm run check:defect` 会打印工单定位结果、拉到的提交数与本人提交数，`--ai`（默认带上）还会
 打印模型生成的分析与措施，便于判断模型输出质量。
 
-两个 Electron 冒烟脚本都会输出一行 JSON（`SMOKE` / `SMOKE_DEFECT`），除内容外还包含布局几何量
+三个 Electron 冒烟脚本都会输出一行 JSON（`SMOKE` / `SMOKE_DEFECT` / `SMOKE_CLOUD`），除内容外还包含布局几何量
 （侧边菜单宽度、两个输入框是否纵向同列、结果块尺寸、是否横向溢出）以及启动时表单的初始值
 （`formValues`，应为两个空串），可用于回归检查样式与「无默认值」有没有被改坏。
 加 `--capture=<路径>` 还会把窗口截图存成 PNG：
 
 ```powershell
 node_modules\electron\dist\electron.exe . --smoke --smoke-defect --capture=%TEMP%\defect.png
+node_modules\electron\dist\electron.exe . --smoke --smoke-cloud --capture=%TEMP%\cloud.png
 ```
 
 ---
@@ -329,8 +371,8 @@ npm run dist        # = electron-builder --win
 
 | 文件 | 说明 |
 | --- | --- |
-| `微联叮小助手-安装版-1.1.0.exe` | NSIS 安装包（约 106 MB）：可选安装目录、自动建桌面与开始菜单快捷方式、装完可直接启动 |
-| `微联叮小助手-便携版-1.1.0.exe` | 单文件免安装版，双击即用（每次启动自解压到临时目录） |
+| `微联叮小助手-安装版-1.2.0.exe` | NSIS 安装包（约 110 MB）：可选安装目录、自动建桌面与开始菜单快捷方式、装完可直接启动 |
+| `微联叮小助手-便携版-1.2.0.exe` | 单文件免安装版，双击即用（每次启动自解压到临时目录） |
 | `win-unpacked\` | 未打包的绿色目录，可直接运行 `微联叮小助手.exe` |
 
 安装行为（`package.json` 的 `build` 字段已配好）：
@@ -377,10 +419,16 @@ src/
     index.js           四步编排 + 四段内容组装
   reminder/
     index.js           到期提醒：截止时间解析、18:00 分界与 17:30 统一提醒判定、待办翻页
-  renderer/            界面（index.html / styles.css / defect.css / renderer.js）
+  cloud/
+    adb.js             adb 封装（设备列表、隧道、push、媒体扫描）
+    session.js         scrcpy-server 会话：推送/拉起 server、视频与控制 socket
+    protocol.js        scrcpy 协议编解码（视频头、触控/按键/文字消息）
+    index.js           云手机控制器（连接/输入/截图/发送图片）
+  renderer/            界面（index.html / styles.css / defect.css / cloud.css / renderer.js / cloud.js）
 assets/
   icon.png / icon.ico  应用图标（ico 为多尺寸，打包用）
   tray.png / tray@2x.png  托盘图标
+  cloud/               内置 adb + scrcpy-server（含 scrcpy 的 Apache-2.0 许可文本）
 scripts/
   check-core.js        核心自检（含缺陷单纯函数用例）
   check-defect.js      缺陷单联网自检（查工单 / 拉提交 / 调模型）
@@ -442,3 +490,16 @@ Node 方式跑并立刻退出（可临时 `Remove-Item Env:\ELECTRON_RUN_AS_NODE
 
 模型生成通常 15–40 秒（20 条提交、两千多字的输入）。超过 120 秒会报超时，
 可在设置里换更快的模型（如 `flash`）再试；日志里会记录实际耗时。
+
+**10. 云手机点「连接」失败 / 一直显示未连接**
+
+先确认手机已打开「开发者选项 → USB 调试」，插线后手机上点了「允许调试」；
+Windows 还要能识别手机（可换数据线 / USB 口，或装厂商驱动）。程序同一时间只连一台手机，
+若端口被其它投屏工具占用，先关掉其它 scrcpy / 手机助手再试。
+无线模式要求手机和电脑在同一局域网：先用 USB 连接点「转无线」，再把地址栏里的
+`IP:5555` 用于重新连接。
+
+**11. 发送图片后手机相册里没看到**
+
+图片保存在手机 `/sdcard/Pictures/CloudPhone`（可用文件管理确认）；部分相册需要下拉刷新
+或等媒体扫描完成。发送时面板会显示成功张数，失败原因会写进运行日志。

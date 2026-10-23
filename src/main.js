@@ -24,8 +24,12 @@ const { createCloudController } = require('./cloud')
 const APP_NAME = '微联叮小助手'
 const ASSETS = path.join(__dirname, '..', 'assets')
 const LEGACY_STATE = path.join(__dirname, '..', 'legacy', 'state.json')
-// 云手机依赖的 adb / scrcpy-server 随安装包一起发布（assets/cloud）
-const CLOUD_RUNTIME = path.join(ASSETS, 'cloud')
+// 云手机依赖的 adb / scrcpy-server 随安装包一起发布（assets/cloud）。
+// 打包后它们被 asarUnpack 到 app.asar.unpacked；adb.exe 不能从 asar 内直接执行，
+// 内置 adb 也读不到 asar 里的 scrcpy-server，所以要用解包后的真实路径。
+const CLOUD_RUNTIME = app.isPackaged
+  ? path.join(process.resourcesPath, 'app.asar.unpacked', 'assets', 'cloud')
+  : path.join(ASSETS, 'cloud')
 
 let mainWindow = null
 let tray = null
@@ -1242,6 +1246,7 @@ if (!gotLock) {
                 const button = document.getElementById('btn-cloud-send-image')
                 const status = document.getElementById('cloud-transfer')
                 const pane = document.getElementById('pane-cloud')
+                const firstOption = document.querySelector('#cloud-device-select option')
                 const rect = button.getBoundingClientRect()
                 // 未连接时调用一次 IPC：不会弹文件框，用来验证 preload → 主进程的通路
                 const ipcResult = button.disabled ? await window.assistant.cloudSendImages() : null
@@ -1250,6 +1255,7 @@ if (!gotLock) {
                   buttonVisible: rect.width > 0 && rect.height > 0,
                   buttonText: button.textContent,
                   buttonDisabled: Boolean(button.disabled),
+                  deviceText: firstOption ? firstOption.textContent : '',
                   transferHidden: Boolean(status && status.hidden),
                   horizontalOverflow: document.documentElement.scrollWidth > window.innerWidth + 1,
                   ipcResult,
