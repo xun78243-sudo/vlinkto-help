@@ -4,6 +4,23 @@
 const fs = require('fs')
 const path = require('path')
 
+const DEFAULT_GROUP_IDS = [
+  'cda6b214bd004867a1e46af520ad8696',
+  '863201152f0848cb83b203f0314075a2',
+]
+
+/** 显式多群配置优先；旧单群配置升级时补入新增群。 */
+function getGroupIds(cfg = {}) {
+  const chat = cfg.chat || {}
+  const normalize = (ids) => [...new Set(ids
+    .filter((id) => typeof id === 'string' && id.trim()).map((id) => id.trim()))]
+  if (Array.isArray(chat.groupIds)) {
+    const ids = normalize(chat.groupIds)
+    if (ids.length) return ids
+  }
+  return normalize([chat.groupId || DEFAULT_GROUP_IDS[0], DEFAULT_GROUP_IDS[1]])
+}
+
 const DEFAULTS = {
   api: {
     baseUrl: 'https://work.hanweb.com',
@@ -17,24 +34,17 @@ const DEFAULTS = {
   chat: {
     userId: 'a5a9854995ee43d5a10f0e3c52d4e21b',
     groupId: 'cda6b214bd004867a1e46af520ad8696',
+    groupIds: [...DEFAULT_GROUP_IDS],
     chatType: 1,
-    senderGroupNames: ['人力资源部'],
     maxPages: 10,
     skipMsgTypes: [1, 2, 3, 10, 11, 24, 25, 40, 44],
-  },
-  rules: {
-    eventKeywords: ['考试', '考核', '培训', '学习', '讲座', '答题', '认证', '测评', '笔试', '实操'],
-    audienceKeywords: ['所有人', '全体', '全员', '各位同事', '所有开发', '全体开发',
-      '开发人员', '开发同学', '各部门', '全体员工'],
-    excludeKeywords: ['取消', '改期', '作废'],
-    requireAudienceKeyword: true,
   },
   schedule: {
     address: '',
     persons: 'a5a9854995ee43d5a10f0e3c52d4e21b',
     organizerId: 'a5a9854995ee43d5a10f0e3c52d4e21b',
-    startTime: '17:00',
-    endTime: '17:30',
+    startTime: '09:00',
+    endTime: '09:30',
     meetingId: '',
     meetingName: '',
     chatNotice: 1,
@@ -179,7 +189,14 @@ function logDir(dir) {
 }
 
 function loadConfig(dir) {
-  const merged = deepMerge(clone(DEFAULTS), readJson(configPath(dir), {}))
+  const saved = readJson(configPath(dir), {})
+  const merged = deepMerge(clone(DEFAULTS), saved)
+  // 必须根据原始配置迁移，否则合并后的默认 groupIds 会覆盖旧自定义 groupId。
+  merged.chat.groupIds = getGroupIds(saved || {})
+  merged.chat.groupId = merged.chat.groupIds[0]
+  // 考试日程固定在考试首日 09:00，旧版本的 17 点设置不再生效。
+  merged.schedule.startTime = '09:00'
+  merged.schedule.endTime = '09:30'
   // 兼容旧版本可能存在的 api.accessToken：只在需要手工兜底时使用
   return merged
 }
@@ -199,6 +216,7 @@ function loadState(dir) {
   const state = readJson(statePath(dir), { processed: {} })
   if (!isPlainObject(state)) return { processed: {} }
   if (!isPlainObject(state.processed)) state.processed = {}
+  if (!isPlainObject(state.examEvents)) state.examEvents = {}
   return state
 }
 
@@ -221,6 +239,7 @@ function migrateLegacyState(dir, legacyFile) {
 
 module.exports = {
   DEFAULTS,
+  getGroupIds,
   deepMerge,
   clone,
   readJson,

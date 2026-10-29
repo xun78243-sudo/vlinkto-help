@@ -76,7 +76,7 @@ function textOf(value) {
   return ''
 }
 
-async function chat(cfg, messages, { log = () => {}, timeoutMs } = {}) {
+async function chat(cfg, messages, { log = () => {}, timeoutMs, temperature = 0.3 } = {}) {
   const model = String(cfg.aiModel || '').trim()
   if (!model) throw new DefectError('未配置 AI 模型', '在「设置」里选择模型，如 Qwen3.6-27B')
 
@@ -90,7 +90,7 @@ async function chat(cfg, messages, { log = () => {}, timeoutMs } = {}) {
       model,
       messages,
       stream: false,
-      temperature: 0.3,
+      temperature,
       maxTokens: Number(cfg.aiMaxTokens) || 2048,
     },
   })
@@ -101,7 +101,7 @@ async function chat(cfg, messages, { log = () => {}, timeoutMs } = {}) {
     throw new DefectError(`AI 服务没有返回内容：${JSON.stringify(payload).slice(0, 200)}`)
   }
   log('info', `AI 返回 ${content.length} 字（${Date.now() - started}ms）`)
-  return { content, model, usage: payload.usage || null }
+  return { content, model, usage: payload.usage || null, finishReason: choice.finish_reason || null }
 }
 
 function describeCommits(commits, fileLimit = 5) {

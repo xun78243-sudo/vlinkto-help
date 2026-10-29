@@ -1,6 +1,6 @@
 'use strict'
 /**
- * 无 GUI 的核心自检：不启动 Electron，直接验证加密、规则、token 与真实接口。
+ * 无 GUI 的核心自检：不启动 Electron，直接验证加密、考试入参、token 与真实接口。
  *
  *   node scripts/check-core.js          # 纯离线自检
  *   node scripts/check-core.js --live   # 额外跑一次真实接口（只判定，不建日程）
@@ -84,41 +84,28 @@ check('缺 transferKey 判 failed',
   im.resolveContent({ msgId: 'x', content: sm4Cipher }, { groupId: SESSION }).how, 'failed')
 
 // ============================================================================
-// 二、规则与标题
+// 二、考试配置、标题与日程入参（AI 完整流程另见 check-exam.js）
 // ============================================================================
 
-const rules = store.DEFAULTS.rules
-
-section('规则匹配：')
-check('全员考试命中', chat.isQualified('请全体人员参加安全生产考试', rules).ok, 'true')
-check('@所有人培训命中',
-  chat.isQualified('@_{"all":"true"}_@《数据安全》培训，要求公司全员参加', rules).ok, 'true')
-check('无关内容不命中', chat.isQualified('今天食堂有红烧肉', rules).ok, 'false')
-check('考试但未要求全员',
-  chat.isQualified('请相关同事参加考试', rules).detail, '命中关键词 考试，但未要求所有人/所有开发参与')
-check('取消类排除', chat.isQualified('全体人员考试取消了', rules).detail, '命中排除词 取消')
+section('考试多群配置：')
+check('默认读取两个群', store.getGroupIds(store.DEFAULTS).join(','),
+  'cda6b214bd004867a1e46af520ad8696,863201152f0848cb83b203f0314075a2')
+check('旧单群配置保留原群并新增', store.getGroupIds({ chat: { groupId: 'legacy-group' } }).join(','),
+  'legacy-group,863201152f0848cb83b203f0314075a2')
 
 section('标题规整：')
-check('去 @所有人 占位符',
-  chat.buildScheduleName('关于考试 {"all":true} 的通知', 50), '关于考试 所有人 的通知')
-check('去 @提醒包装',
-  chat.buildScheduleName('@_{"all":"true"}_@《数据安全》培训\n要求全员参加', 50), '《数据安全》培训')
-check('取首行作标题', chat.buildScheduleName('第一行标题\n第二行正文', 50), '第一行标题')
+check('课程名加考试后缀', chat.buildScheduleName('数据安全', 50), '数据安全考试')
+check('课程名空白规整', chat.buildScheduleName(' 数据安全\n  基础 ', 50), '数据安全 基础考试')
 check('超长截断', chat.buildScheduleName('考'.repeat(100), 50).length, '50')
-
-section('部门匹配：')
-check('精确匹配', chat.matchDepartment('人力资源部', ['人力资源部']), '人力资源部')
-check('包含匹配', chat.matchDepartment('人力资源部（总部）', ['人力资源部']), '人力资源部')
-check('其他部门不命中', chat.matchDepartment('研发部', ['人力资源部']), '')
-check('空部门不命中', chat.matchDepartment('', ['人力资源部']), '')
+check('截断仍保留考试后缀', chat.buildScheduleName('考'.repeat(100), 50).slice(-2), '考试')
 
 section('建日程入参：')
 const payload = chat.buildSchedulePayload(store.DEFAULTS, '测试日程', '2026-10-20')
 check('字段集合与接口一致', Object.keys(payload).join(','),
   'scheduleName,address,persons,organizerId,endDate,startDate,startTime,endTime,'
   + 'meetingId,meetingName,chatNotice,remindNotice,smsNotice,emailNotice,videoPower')
-check('日期取当天', `${payload.startDate}/${payload.endDate}`, '2026-10-20/2026-10-20')
-check('默认时间窗', `${payload.startTime}-${payload.endTime}`, '17:00-17:30')
+check('日期取显式考试开始日', `${payload.startDate}/${payload.endDate}`, '2026-10-20/2026-10-20')
+check('固定时间窗', `${payload.startTime}-${payload.endTime}`, '09:00-09:30')
 
 section('消息唯一键：')
 const base = { userid: 'u1', time: 1792461900000, content: '全体人员参加考试' }
@@ -446,13 +433,14 @@ async function live() {
       if (level !== 'debug') console.log(`  [${level}] ${message}`)
     },
   })
-  console.log(`  共 ${stats.total} 条 / 本部门 ${stats.dept} 条 / 当天 ${stats.today} 条 / `
-    + `命中 ${stats.qualified} 条 / 将建 ${stats.created} 条 / 解密失败 ${stats.undecrypted} 条`)
+  console.log(`  共 ${stats.total} 条 / 当天 ${stats.today} 条 / AI 分析 ${stats.analyzed} 条 / `
+    + `符合 ${stats.qualified} 项 / 将建 ${stats.created} 条 / 解密失败 ${stats.undecrypted} 条 / 失败 ${stats.failed} 项`)
   check('确实取到了消息', stats.total > 0, 'true')
   check('没有解密失败', stats.undecrypted, '0')
+  check('AI 与接口无失败', stats.failed, '0')
 }
 
-live().then(() => {
+Promise.resolve(process.argv.includes('--live') ? live() : undefined).then(() => {
   console.log(failed ? `\n失败 ${failed} 项` : '\n自检全部通过')
   process.exit(failed ? 1 : 0)
 }).catch((error) => {

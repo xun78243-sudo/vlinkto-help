@@ -151,8 +151,8 @@ function appView() {
     autoLaunch: app.getLoginItemSettings().openAtLogin,
     dryRun: Boolean(cfg.app.dryRun),
     groupId: cfg.chat.groupId,
-    departments: cfg.chat.senderGroupNames,
-    scheduleTime: `${cfg.schedule.startTime}-${cfg.schedule.endTime}`,
+    groupIds: store.getGroupIds(cfg),
+    scheduleTime: '09:00-09:30',
   }
 }
 
@@ -349,11 +349,12 @@ async function runExam(trigger = 'manual') {
       onCreated: async (nextState) => store.saveState(userDir, nextState),
     })
 
-    result = { ok: stats.failed === 0, stats, durationMs: Date.now() - startedAt }
-    log('info', `汇总：共 ${stats.total} 条 / 本部门 ${stats.dept} 条 / 当天 ${stats.today} 条 / `
-      + `命中 ${stats.qualified} 条 / 建日程 ${stats.created} 条 / 跳过 ${stats.skipped} 条 / `
-      + `解密失败 ${stats.undecrypted} 条 / 建失败 ${stats.failed} 条`)
-    if (stats.created > 0) {
+    result = { ok: stats.failed === 0 && stats.undecrypted === 0, stats,
+      dryRun: Boolean(cfg.app.dryRun), durationMs: Date.now() - startedAt }
+    log('info', `汇总：共 ${stats.total} 条消息 / 当天 ${stats.today} 条 / AI 分析 ${stats.analyzed} 条 / `
+      + `符合条件 ${stats.qualified} 项 / ${result.dryRun ? '拟建' : '创建'}日程 ${stats.created} 条 / 跳过 ${stats.skipped} 项 / `
+      + `解密失败 ${stats.undecrypted} 条 / 失败 ${stats.failed} 项（AI ${stats.aiFailed}，群获取 ${stats.fetchFailed}）`)
+    if (stats.created > 0 && !result.dryRun) {
       notify('已创建考试日程', stats.names.slice(0, 3).join('\n'))
     }
   } catch (error) {

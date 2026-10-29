@@ -12,6 +12,7 @@
     "dev": "electron . --dev",
     "icons": "node scripts/make-icons.js",
     "check": "node scripts/check-core.js",
+    "check:exam": "node scripts/check-exam.js",
     "check:live": "node scripts/check-core.js --live",
     "check:defect": "node scripts/check-defect.js --ai",
     "check:defect:submit": "node scripts/check-defect.js --ai --submit",

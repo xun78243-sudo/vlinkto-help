@@ -69,7 +69,7 @@ function renderExam(exam) {
   $('exam-hint').textContent = `打开开关后立即检测一次，之后每 ${exam.intervalHours || 3} 小时自动执行`
 
   const stateEl = $('exam-state')
-  stateEl.textContent = exam.running ? '检测中…' : (exam.enabled ? '自动检测已开启' : '已关闭')
+  stateEl.textContent = exam.running ? '获取消息 / AI 分析中…' : (exam.enabled ? '自动检测已开启' : '已关闭')
   stateEl.className = exam.running ? '' : (exam.enabled ? 'ok' : '')
 
   $('exam-last').textContent = fmtDate(exam.lastRunAt)
@@ -77,6 +77,9 @@ function renderExam(exam) {
 
   const resultEl = $('exam-result')
   const result = exam.lastResult
+  resultEl.title = ''
+  $('exam-events').textContent = ''
+  $('exam-details').hidden = true
   if (!result) {
     resultEl.textContent = '—'
     resultEl.className = ''
@@ -86,10 +89,26 @@ function renderExam(exam) {
     resultEl.title = result.error
   } else if (result.stats) {
     const stats = result.stats
-    resultEl.textContent = `建日程 ${stats.created} 条 / 命中 ${stats.qualified} 条`
+    resultEl.textContent = `${result.dryRun ? '试运行：将建' : '已建'} ${stats.created} 条 / AI 符合 ${stats.qualified} 条`
     resultEl.className = stats.failed > 0 ? 'error' : 'ok'
-    resultEl.title = `共 ${stats.total} 条，本部门 ${stats.dept} 条，当天 ${stats.today} 条，`
-      + `跳过 ${stats.skipped} 条，解密失败 ${stats.undecrypted} 条，建失败 ${stats.failed} 条`
+    resultEl.title = `共 ${stats.total} 条，当天 ${stats.today} 条，AI 分析 ${stats.analyzed || 0} 条，`
+      + `跳过 ${stats.skipped} 条，解密失败 ${stats.undecrypted} 条，`
+      + `失败 ${stats.failed} 次（AI ${stats.aiFailed || 0} 次，获取群消息 ${stats.fetchFailed || 0} 次）`
+
+    const statusText = {
+      created: '已创建', planned: '试运行：将创建', skipped: '已跳过',
+      duplicate: '已存在', cancelled: '已取消，不创建', failed: '处理失败',
+    }
+    const events = Array.isArray(stats.events) ? stats.events : []
+    $('exam-details').hidden = events.length === 0
+    for (const event of events) {
+      const title = event.scheduleName || event.courseName || '群消息分析'
+      const date = event.examStartDate ? ` | ${event.examStartDate} 09:00–09:30` : ''
+      const reason = event.reason ? `\n${event.reason}` : ''
+      const row = el('p', 'hint log-line', `[${statusText[event.status] || event.status || 'AI 判断'}] ${title}${date}${reason}`)
+      if (event.groupId) row.title = `来源群：${event.groupId}`
+      $('exam-events').appendChild(row)
+    }
   }
 
   $('btn-run').disabled = Boolean(exam.running) || busy

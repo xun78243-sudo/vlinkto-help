@@ -76,15 +76,22 @@
             </div>
           </div>
 
+          <p class="hint">AI 分析两个群当天的聊天记录，确认课程名称、开发参与对象与考试开始日期，创建考试首日 09:00–09:30 的日程。</p>
+          <p class="hint">AI 服务与模型沿用「缺陷单总结」的设置；仅有培训日期或无法确定考试日期时跳过。</p>
+
           <div class="actions">
             <button id="btn-run" class="btn primary">立即执行一次</button>
             <label class="check">
               <input type="checkbox" id="dry-run">
-              <span>试运行（只判定，不创建日程）</span>
+              <span>试运行（调用 AI，不创建日程）</span>
             </label>
             <span class="spacer"></span>
             <button id="btn-logs" class="btn ghost small">打开日志目录</button>
             <button id="btn-config" class="btn ghost small">打开配置文件</button>
+          </div>
+          <div id="exam-details" aria-live="polite" hidden>
+            <p class="hint">AI 判断与日程结果</p>
+            <div id="exam-events"></div>
           </div>
         </section>
       </div>
